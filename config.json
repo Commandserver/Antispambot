@@ -1,0 +1,21 @@
+{
+    "token": "YOUR TOKEN",
+    "log-filename": "latest.log",
+    "thread-rate-limit": 3,
+    "admin-user-ids": [
+        123456
+    ],
+    "log-channel-id": 845270302471487515,
+    "guild-id": 938499352297406484,
+    "excluded_channel_ids": [
+        123456
+    ],
+    "excluded_category_ids": [
+        123456
+    ],
+    "forbidden-file-extensions": [
+        ".exe",
+        ".bat",
+        ".py"
+    ]
+}
