@@ -290,6 +290,7 @@ int main() {
 				bot.log(dpp::ll_error, "couldn't delete message: " + e.http_info.body);
 			}
 		});
+		bot.log(dpp::ll_debug, "added 1 message to deletion queue");
 	};
 
 	/// helper function to delete all cached messages of a user in case of spam
@@ -306,6 +307,7 @@ int main() {
 					channelIds.insert(msg->channel_id);
 				}
 			}
+			uint32_t deletionCount = 0;
 			for (const auto &channelId : channelIds) { // loop through each channel id to bulk delete the user messages
 				vector<dpp::snowflake> messageIds;
 				for (const auto &[msgId, msg]: mc) {
@@ -317,6 +319,7 @@ int main() {
 						break;
 					}
 				}
+				deletionCount += messageIds.size();
 
 				// bulk delete message ids
 				if (messageIds.size() > 1) {
@@ -333,13 +336,14 @@ int main() {
 					});
 				}
 			}
+			bot.log(dpp::ll_debug, "added " + to_string(deletionCount) + " messages to deletion queue");
 		}
 		for (dpp::message *mp: to_remove) {
 			message_cache.remove(mp);
 		}
 	};
 
-	bot.on_message_create([&bot, &log, &message_cache, &domainBlacklist, &forbiddenWords, &config, &bypassConfig, &muteMember](const dpp::message_create_t &event) {
+	bot.on_message_create([&bot, &log, &message_cache, &domainBlacklist, &forbiddenWords, &config, &bypassConfig, &muteMember, &deleteUserMessages, &deleteMsg](const dpp::message_create_t &event) {
 		/*
 		 * Do nothing when:
 		 * - from a bot
@@ -399,8 +403,10 @@ int main() {
 		 * helper function in case of spam
 		 * @param reason The reason to timeout the member
 		 * @param muteDuration The amount of seconds to timeout the member
+		 * @param clearHistoryMessages Will delete all messages from the user if set to true.
+		 * When set to false, it deletes only this message
 		 */
-		function mitigateSpam = [&bot, &config, &event, &muteMember](const string& reason, const uint32_t muteDuration) {
+		function mitigateSpam = [&bot, &config, &event, &muteMember, &deleteUserMessages, &deleteMsg](const string& reason, const uint32_t muteDuration, bool clearHistoryMessages) {
 
 			muteMember(muteDuration, event.msg.guild_id, event.msg.author.id);
 
@@ -454,6 +460,11 @@ int main() {
 					bot.log(dpp::ll_error, "error while sending spam-log-message: " + c.http_info.body);
 				}
 			});
+			if (clearHistoryMessages) {
+				deleteUserMessages(event.msg.author.id);
+			} else {
+				deleteMsg(event.msg);
+			}
 		};
 
 		/* begin of the main algorithm */
@@ -505,11 +516,11 @@ int main() {
 							for (auto &s: domainBlacklist.get_container()) {
 								if (s.rfind('.', 0) == 0 and endsWith(domain, s)) { // if it's a top level domain
 									log->debug("blacklisted top-level-domain: " + domain);
-									mitigateSpam(fmt::format("Verbotene Top-Level-Domain: `{}`", domain), 86400 * 27);
+									mitigateSpam(fmt::format("Verbotene Top-Level-Domain: `{}`", domain), 86400 * 27, true);
 									return;
 								} else if (s == domain) {
 									log->debug("blacklisted domain: " + domain);
-									mitigateSpam(fmt::format("Verbotene Domain: `{}`", domain), 86400 * 27);
+									mitigateSpam(fmt::format("Verbotene Domain: `{}`", domain), 86400 * 27, true);
 									return;
 								}
 							}
@@ -521,7 +532,7 @@ int main() {
 				for (const string ext : config["forbidden-file-extensions"]) {
 					if (endsWith(URL, ext)) {
 						log->debug("forbidden extension: " + ext);
-						mitigateSpam(fmt::format("Verbotene Datei-Endung im Link: `{}`", ext), 86400 * 27);
+						mitigateSpam(fmt::format("Verbotene Datei-Endung im Link: `{}`", ext), 86400 * 27, true);
 						return;
 					}
 				}
@@ -540,7 +551,7 @@ int main() {
 						if (message.find(" " + forbiddenWord) != string::npos or message.find(forbiddenWord + " ") != string::npos or
 						message.rfind(forbiddenWord, 0) == 0 or endsWith(message, forbiddenWord)) { // search the bad word in the message
 							log->debug("bad word: " + forbiddenWord);
-							mitigateSpam(fmt::format("Verwendung eines verbotenen Wortes: `{}`", forbiddenWord), 660);
+							mitigateSpam(fmt::format("Verwendung eines verbotenen Wortes: `{}`", forbiddenWord), 660, false);
 							return;
 						}
 					}
@@ -551,14 +562,14 @@ int main() {
 		// to many urls in general
 		if (urlCount > 8) {
 			log->debug("too many urls");
-			mitigateSpam("Zu viele URLs", 86400 * 27);
+			mitigateSpam("Zu viele URLs", 86400 * 27, true);
 			return;
 		}
 
 		// too many mentions
 		if (event.msg.mentions.size() > 8) {
 			log->debug("too many mentions in one message");
-			mitigateSpam("Massen erwähnung", 86400 * 14);
+			mitigateSpam("Massen erwähnung", 86400 * 14, false);
 			return;
 		}
 
@@ -566,7 +577,7 @@ int main() {
 		if (urlCount >= 1 and (event.msg.content.find("@everyone") != string::npos or
 							   event.msg.content.find("@here") != string::npos)) {
 			log->debug("url with @everyone-mention");
-			mitigateSpam("Nachricht enthält link und erwähnung", 86400 * (inviteCount >= 1 ? 27 : 14));
+			mitigateSpam("Nachricht enthält link und erwähnung", 86400 * (inviteCount >= 1 ? 27 : 14), true);
 			return;
 		}
 
@@ -575,7 +586,7 @@ int main() {
 			for (const string ext : config["forbidden-file-extensions"]) {
 				if (endsWith(attachment.filename, ext)) {
 					log->debug("forbidden file extension: " + ext);
-					mitigateSpam(fmt::format("Verbotene Datei-Endung `{}`", ext), 86400 * 27);
+					mitigateSpam(fmt::format("Verbotene Datei-Endung `{}`", ext), 86400 * 27, true);
 					return;
 				}
 			}
@@ -692,30 +703,32 @@ int main() {
             message_cache.remove(mp); // will lock the container with unique mutex
         }
 
+        // too many repeated messages in multiple channels
 		if (same_messages_in_different_channels.size() >= 3) {
 			string channelMentions;
 			for (auto &s : same_messages_in_different_channels) {
 				channelMentions += fmt::format("<#{}>", s->channel_id);
 			}
 			mitigateSpam(fmt::format("Die gleiche Nachricht, in kürzester Zet, in {} Channeln:||{}||",
-									 same_messages_in_different_channels.size(), channelMentions), 86400 * (urlCount >= 1 ? 27 : 14)); // maximum mute duration if contains url
+									 same_messages_in_different_channels.size(), channelMentions), 86400 * (urlCount >= 1 ? 27 : 14), true); // maximum mute duration if contains url
 			return;
 		}
 
+        // too many repeated messages in the same channel
 		if (same_messages_in_same_channel.size() >= 4) {
-			mitigateSpam("Die selbe Nachricht zu oft wiederholt", 86400 * (urlCount >= 1 ? 27 : 8)); // maximum mute duration if contains url
+			mitigateSpam("Die selbe Nachricht zu oft wiederholt", 86400 * (urlCount >= 1 ? 27 : 8), true); // maximum mute duration if contains url
 			return;
 		}
 
 		// same attachment or sticker sent somewhere
 		if (same_attachment.size() >= 4) {
-			mitigateSpam("Der selbe Anhang, in kürzester Zeit, zu oft", 86400 * 7);
+			mitigateSpam("Der selbe Anhang, in kürzester Zeit, zu oft", 86400 * 7, true);
 			return;
 		}
 
 		if (mention_count > 20) {
 			log->debug("too many mentions in multiple messages");
-			mitigateSpam("Massen erwähnung durch mehrere Nachrichten", 86400 * 27);
+			mitigateSpam("Massen erwähnung durch mehrere Nachrichten", 86400 * 27, true);
 			return;
 		}
 
@@ -726,25 +739,25 @@ int main() {
 				channelMentions += "<#" + to_string(id) + ">";
 			}
 			mitigateSpam(fmt::format("Nachrichten, in kürzester Zeit, in {} Channeln:||{}||",
-									 different_channel_ids.size(), channelMentions), 86400 * (urlCount >= 1 ? 27 : 1)); // maximum mute duration if contains url
+									 different_channel_ids.size(), channelMentions), 86400 * (urlCount >= 1 ? 27 : 1), true); // maximum mute duration if contains url
 			return;
 		}
 
 		// too many discord-invitations in one message
 		if (inviteCount > 4 or inviteCodes.size() > 2) {
 			log->debug("too many invites");
-			mitigateSpam("Zu viele Einladungslinks", 86400 * 27);
+			mitigateSpam("Zu viele Einladungslinks", 86400 * 27, true);
 			return;
 		} else {
 			// check for invitation to another server
 			for (const string &inviteCode: inviteCodes) {
 				log->debug("invite code: " + inviteCode);
-				bot.invite_get(inviteCode, [guild_id = event.msg.guild_id, &config, &bot, msg = event.msg, &muteMember](const dpp::confirmation_callback_t &e) {
+				bot.invite_get(inviteCode, [guild_id = event.msg.guild_id, &config, &bot, msg = event.msg, &muteMember, &deleteUserMessages](const dpp::confirmation_callback_t &e) {
 					/**
 					 * helper function in case of spam
 					 * @param muteDuration The amount of seconds to timeout the member
 					 */
-					function mitigateInviteSpam = [&bot, &config, &msg, &e, &muteMember](const uint32_t muteDuration) {
+					function mitigateInviteSpam = [&bot, &config, &msg, &e, &muteMember, &deleteUserMessages](const uint32_t muteDuration) {
 
 						muteMember(muteDuration, msg.guild_id, msg.author.id);
 
@@ -780,6 +793,7 @@ int main() {
 								bot.log(dpp::ll_error, "error while sending the log message: " + c.http_info.body);
 							}
 						});
+						deleteUserMessages(msg.author.id);
 					};
 					if (!e.is_error()) {
 						auto invite = get<dpp::invite>(e.value);
