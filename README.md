@@ -1,6 +1,9 @@
 # Antispambot
 
-A Discord Bot to prevent spam.
+![Lines of code](https://img.shields.io/tokei/lines/github/Commandserver/Antispambot) 
+![GitHub](https://img.shields.io/github/license/Commandserver/Antispambot)
+
+An efficient Discord Bot to prevent spam using [D++](https://github.com/brainboxdotcc/DPP).
 
 ## Features
 
