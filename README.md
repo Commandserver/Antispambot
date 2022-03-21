@@ -22,4 +22,4 @@ The bot will time out the users who spam!
 
 ## Dependencies
 
-- [DPP](https://github.com/brainboxdotcc/DPP) v10.0.3
+- [DPP](https://github.com/brainboxdotcc/DPP) v10.0.4
