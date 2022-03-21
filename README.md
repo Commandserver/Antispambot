@@ -1,5 +1,7 @@
 # Antispambot
 
+[![Codacy Badge](https://api.codacy.com/project/badge/Grade/ae73255bfc4c44de96dadad69aa9a7a8)](https://app.codacy.com/gh/Commandserver/Antispambot?utm_source=github.com&utm_medium=referral&utm_content=Commandserver/Antispambot&utm_campaign=Badge_Grade_Settings)
+
 ![Lines of code](https://img.shields.io/tokei/lines/github/Commandserver/Antispambot) 
 ![GitHub](https://img.shields.io/github/license/Commandserver/Antispambot) 
 
