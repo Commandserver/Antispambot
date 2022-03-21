@@ -36,3 +36,7 @@ All created threads will have a slow-mode of 3 seconds to prevent mass-pings in 
 
 * [DPP](https://github.com/brainboxdotcc/DPP) (version 10.0.4)
 
+### Set up this bot
+
+The bot requires the message content and server members intent to be enabled!
+Some permissions are also required in order to work: `VIEW_CHANNEL`, `SEND_MESSAGES`, `MANAGE_MESSAGES`, `MANAGE_THREADS`, `MODERATE_MEMBERS`.
