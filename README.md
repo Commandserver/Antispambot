@@ -3,23 +3,35 @@
 ![Lines of code](https://img.shields.io/tokei/lines/github/Commandserver/Antispambot) 
 ![GitHub](https://img.shields.io/github/license/Commandserver/Antispambot) 
 
-An efficient Discord Bot to prevent spam using [D++](https://github.com/brainboxdotcc/DPP).
+**An efficient Discord Bot to prevent spam** written in C++. Tested on a large discord server and mitigates around 90% of spam.
 
 ## Features
 
-- Raid warning system when large amounts of users joined under a minute
-- Delete fake nitro ads and stuff like that
-- Detects invitations
-- Delete messages sent in too many channels
-- Detects when someone sent multiple repeated messages
-- Delete messages with too many mentions
-- Thread slow-mode to prevent spam in them
-- Detect bad words
-- Has a list of blacklisted domains
-- You can define forbidden file extensions like _.exe_
+The following is considered as spam and will be deleted by the bot:
 
-The bot will time out the users who spam!
+- discord invitations
+- repeated messages over too many channels. This also effects fake nitro ads!
+- multiple repeated messages
+- messages with too many mentions
+- bad words (configurable in `bad-words.txt`)
+- messages that contain blacklisted domains (see `domain-blacklist.txt`)
+- forbidden file extensions like _.exe_ (configurable)
 
-## Dependencies
+The bot will time out users who spam!
 
-- [DPP](https://github.com/brainboxdotcc/DPP) v10.0.4
+It also detects raids when large amounts of users joined in a shorter time.
+
+All created threads will have a slow-mode of 3 seconds to prevent mass-pings in them.
+
+## Build
+
+#### [View D++ library documentation](https://dpp.dev/)
+
+### Dependencies
+
+- [cmake](https://cmake.org/) (version 3.13+)
+
+### Included Dependencies
+
+- [DPP](https://github.com/brainboxdotcc/DPP) (version 10.0.4)
+

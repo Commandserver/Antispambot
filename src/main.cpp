@@ -538,7 +538,8 @@ int main() {
 				}
 			}
 
-			// check for bad word usage
+			/* check for bad word usage.
+			   It loops through each word in the message and checks if its starting or ending with a bad word. */
 			{
 				string message = event.msg.content;
 				regex replacementRegex(R"([!,.\n\r\t\0])", regex_constants::icase);
