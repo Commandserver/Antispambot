@@ -29,7 +29,7 @@
 
 using json = nlohmann::json;
 
-const std::map<std::string, dpp::guild_flags> featuremap = {
+const std::map<std::string, std::variant<dpp::guild_flags, dpp::guild_flags_extra>> featuremap = {
 	{"INVITE_SPLASH", dpp::g_invite_splash },
 	{"VIP_REGIONS", dpp::g_vip_regions },
 	{"VANITY_URL", dpp::g_vanity_url },
@@ -40,6 +40,7 @@ const std::map<std::string, dpp::guild_flags> featuremap = {
 	{"NEWS", dpp::g_news },
 	{"DISCOVERABLE", dpp::g_discoverable },
 	{"FEATUREABLE", dpp::g_featureable },
+	{"ANIMATED_BANNER", dpp::g_animated_banner },
 	{"ANIMATED_ICON", dpp::g_animated_icon },
 	{"BANNER", dpp::g_banner },
 	{"WELCOME_SCREEN_ENABLED", dpp::g_welcome_screen_enabled },
@@ -79,7 +80,8 @@ guild::guild() :
 	verification_level(ver_none),
 	explicit_content_filter(expl_disabled),
 	mfa_level(mfa_none),
-	nsfw_level(nsfw_default)
+	nsfw_level(nsfw_default),
+	flags_extra(0)
 {
 }
 
@@ -247,6 +249,10 @@ bool guild::has_vanity_url() const {
 	return this->flags & g_vanity_url;
 }
 
+bool guild::has_premium_progress_bar_enabled() const {
+	return this->flags_extra & g_premium_progress_bar_enabled;
+}
+
 bool guild::has_channel_banners() const {
 	return this->flags & g_channel_banners;
 }
@@ -279,6 +285,10 @@ bool guild::is_featureable() const {
 	return this->flags & g_featureable;
 }
 
+bool guild::has_animated_banner() const {
+	return this->flags_extra & g_animated_banner;
+}
+
 bool guild::has_animated_icon() const {
 	return this->flags & g_animated_icon;
 }
@@ -303,7 +313,7 @@ bool guild::has_animated_icon_hash() const {
 	return this->flags & g_has_animated_icon;
 }
 
-bool guild::has_animated_banner_icon_hash() const {
+bool guild::has_animated_banner_hash() const {
 	return this->flags & g_has_animated_banner;
 }
 
@@ -359,6 +369,7 @@ std::string guild::build_json(bool with_id) const {
 	if (system_channel_id) {
 		j["system_channel_id"] = system_channel_id;
 	}
+	j["premium_progress_bar_enabled"] = (bool)(flags_extra & g_premium_progress_bar_enabled);
 	if (rules_channel_id) {
 		j["rules_channel_id"] = rules_channel_id;
 	}
@@ -418,10 +429,16 @@ guild& guild::fill_from_json(discord_client* shard, nlohmann::json* d) {
 		this->flags |= bool_not_null(d, "large") ? dpp::g_large : 0;
 		this->flags |= bool_not_null(d, "widget_enabled") ? dpp::g_widget_enabled : 0;
 
+		this->flags_extra |= bool_not_null(d, "premium_progress_bar_enabled") ? dpp::g_premium_progress_bar_enabled : 0;
+
 		for (auto & feature : (*d)["features"]) {
 			auto f = featuremap.find(feature.get<std::string>());
 			if (f != featuremap.end()) {
-				this->flags |= f->second;
+				if (std::holds_alternative<guild_flags_extra>(f->second)) {
+					this->flags_extra |= std::get<guild_flags_extra>(f->second);
+				} else {
+					this->flags |= std::get<guild_flags>(f->second);
+				}
 			}
 		}
 		uint8_t scf = int8_not_null(d, "system_channel_flags");
@@ -605,10 +622,12 @@ std::string guild::get_banner_url(uint16_t size) const {
 	 * At some point in the future this URL *will* change!
 	 */
 	if (!this->banner.to_string().empty()) {
-		return fmt::format("{}/banners/{}/{}.png{}",
+		return fmt::format("{}/banners/{}/{}{}.{}{}",
 						   utility::cdn_host,
 						   this->id,
+						   (has_animated_banner_hash() ? "a_" : ""),
 						   this->banner.to_string(),
+						   (has_animated_banner_hash() ? "gif" : "png"),
 						   utility::avatar_size(size)
 		);
 	} else {
@@ -640,7 +659,7 @@ std::string guild::get_icon_url(uint16_t size) const {
 		return fmt::format("{}/icons/{}/{}{}.{}{}",
 						   utility::cdn_host,
 						   this->id,
-						   (has_animated_icon() ? "a_" : ""),
+						   (has_animated_icon_hash() ? "a_" : ""),
 						   this->icon.to_string(),
 						   (has_animated_icon_hash() ? "gif" : "png"),
 						   utility::avatar_size(size)

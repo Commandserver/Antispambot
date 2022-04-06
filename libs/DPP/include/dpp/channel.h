@@ -47,7 +47,8 @@ enum channel_type {
 	GUILD_NEWS_THREAD	= 10,	//!< a temporary sub-channel within a GUILD_NEWS channel
 	GUILD_PUBLIC_THREAD	= 11,	//!< a temporary sub-channel within a GUILD_TEXT channel
 	GUILD_PRIVATE_THREAD	= 12,	//!< a temporary sub-channel within a GUILD_TEXT channel that is only viewable by those invited and those with the MANAGE_THREADS permission
-	GUILD_STAGE		= 13	//!< a "stage" channel, like a voice channel with one authorised speaker
+	GUILD_STAGE		= 13,	//!< a "stage" channel, like a voice channel with one authorised speaker
+	GUILD_DIRECTORY = 14    //!< the channel in a [hub](https://support.discord.com/hc/en-us/articles/4406046651927-Discord-Student-Hubs-FAQ) containing the listed servers
 };
 /** @brief Our flags as stored in the object */
 enum channel_flags : uint16_t {
@@ -298,6 +299,14 @@ public:
 	 * @return Reference to self, so these method calls may be chained 
 	 */
 	channel& set_position(const uint16_t position);
+
+	/**
+	 * @brief Set guild_id of this channel object
+	 *
+	 * @param guild_id Guild ID to set
+	 * @return Reference to self, so these method calls may be chained 
+	 */
+	channel& set_guild_id(const snowflake guild_id);
 
 	/**
 	 * @brief Set parent_id of this channel object

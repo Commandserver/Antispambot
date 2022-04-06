@@ -34,7 +34,7 @@ All created threads will have a slow-mode of 3 seconds to prevent mass-pings in 
 
 ### Included Dependencies
 
-* [DPP](https://github.com/brainboxdotcc/DPP) (version 10.0.4)
+* [DPP](https://github.com/brainboxdotcc/DPP) (version 10.0.5)
 
 ### Set up this bot
 
