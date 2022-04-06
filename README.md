@@ -6,6 +6,10 @@
 
 **An efficient Discord Bot to prevent spam** written in C++. Tested on a large discord server and mitigates around 90% of spam. Its well commented and can be easily adapt according to your needs.
 
+#### Why C++?
+
+I had pretty much the same bot in python, but i stopped working on a large discord server because it had problems caching the messages, so i moved to C++.
+
 ## Features
 
 The following is considered as spam and will be deleted by the bot:
