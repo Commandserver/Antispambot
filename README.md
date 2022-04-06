@@ -8,15 +8,15 @@
 
 #### Why C++?
 
-I had pretty much the same bot in python, but i stopped working on a large discord server because it had problems caching the messages, so i moved to C++.
+I had pretty much the same bot in python, but i had problems with the message cache when it ran on a bigger server. Weird things happened and in the end i had no _real_ control of the cache, so i moved to C++.
 
 ## Features
 
 The following is considered as spam and will be deleted by the bot:
 
 * discord invitations
-* repeated messages over too many channels. This also effects fake nitro ads!
-* multiple repeated messages
+* crossposted messages (repeated messages over too many channels). This also effects fake nitro ads!
+* repeated messages
 * messages with too many mentions
 * bad words (configurable in `bad-words.txt`)
 * messages that contain blacklisted domains (see `domain-blacklist.txt`)
