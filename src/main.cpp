@@ -269,7 +269,6 @@ int main() {
 			auto member = dpp::find_guild_member(guildId, userId);
 			time_t muteUntil = time(nullptr) + muteDuration;
 			if (member.communication_disabled_until < muteUntil) {
-				member.set_communication_disabled_until(muteUntil);
 				bot.guild_member_timeout(guildId, userId, muteUntil, [&bot, userId](const dpp::confirmation_callback_t &e) {
 					if (e.is_error()) {
 						bot.log(dpp::ll_error, "cannot timeout member " + e.http_info.body);

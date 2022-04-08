@@ -377,6 +377,16 @@ namespace dpp {
 			};
 		}
 
+		std::function<void(const dpp::confirmation_callback_t& detail)> log_error() {
+			return [](const dpp::confirmation_callback_t& detail) {
+				if (detail.is_error()) {
+					if (detail.bot) {
+						detail.bot->log(dpp::ll_error, fmt::format("Error {} [{}] on API request, returned content was: {}", detail.get_error().code, detail.get_error().message, detail.http_info.body));
+					}
+				}
+			};
+		}
+
 		/* Hexadecimal sequence for URL encoding */
 		static const char* hex = "0123456789ABCDEF";
 
