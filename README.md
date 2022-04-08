@@ -58,6 +58,24 @@ All forbidden domains are stored in `domain-blacklist.txt`. Used to prevent the 
 The bot requires the **message content** and **server members** intent to be enabled!
 These permissions are required: `VIEW_CHANNEL`, `SEND_MESSAGES`, `MANAGE_MESSAGES`, `MANAGE_THREADS`, `MODERATE_MEMBERS`.
 
+I'd recommend running the bot with systemd, to keep the bot always online.
+
+A basic .service file could look like this:
+
+```unit file (systemd)
+[Unit]
+Description=Antispam Discord Bot
+After=network.target
+
+[Service]
+ExecStart=/home/PATH_TO_THE_EXECUTABLE
+Type=simple
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+```
+
 ## Show your support
 
 Be sure to leave a ⭐️ if you like the project and also be sure to contribute, if you're interested! Want to help? Drop me a line or send a PR.
