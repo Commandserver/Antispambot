@@ -120,3 +120,9 @@ if (!$githubstyle) {
 	echo "\n";
 }
 
+if (!$githubstyle) {
+	$version = $argv[2];
+	echo 'The ' . $version . ' download can be found here: <https://github.com/brainboxdotcc/DPP/releases/tag/v' . $version . '>';
+	echo "\n";
+}
+

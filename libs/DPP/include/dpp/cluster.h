@@ -1458,7 +1458,7 @@ public:
 	void request(const std::string &url, http_method method, http_completion_event callback, const std::string &postdata = "", const std::string &mimetype = "text/plain", const std::multimap<std::string, std::string> &headers = {});
 
 	/**
-	 * @brief Respond to a slash command
+	 * @brief Edit response to a slash command
 	 *
 	 * @see https://discord.com/developers/docs/interactions/receiving-and-responding#create-interaction-response
 	 * @param interaction_id Interaction id to respond to
@@ -2311,7 +2311,7 @@ public:
 
 	/**
 	 * @brief Remove (kick) a guild member
-	 * 
+	 *  
 	 * Remove a member from a guild. Requires `KICK_MEMBERS` permission.
 	 * Fires a `Guild Member Remove` Gateway event.
 	 * @see https://discord.com/developers/docs/resources/guild#remove-guild-member
