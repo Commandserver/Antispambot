@@ -9,7 +9,6 @@
 ## Features
 
 The following is considered as spam and will be deleted by the bot:
-
 * discord invitations
 * crossposted messages (repeated messages over too many channels). This also effects fake nitro ads!
 * repeated messages
@@ -29,14 +28,14 @@ The bot will time out users who spam!
 Currently only Linux is supported, but other UNIX-style platforms should build and run the bot fine.
 
 ## Dependencies
-
 * [cmake](https://cmake.org/) (version 3.16+)
 * [g++](https://gcc.gnu.org) (version 8 or higher)
 * [DPP](https://github.com/brainboxdotcc/DPP) (version 10.0.5)
+* [spdlog](https://github.com/gabime/spdlog)
 
 ## Building
 
-```
+```bash
 mkdir build
 cmake ..
 make -j8
@@ -65,6 +64,6 @@ Be sure to leave a ⭐️ if you like the project and also be sure to contribute
 
 ## FAQ
 
-#### Why C++?
+**Why C++?**
 
 I had pretty much the same bot in python, but i had problems with the message cache when it ran on a bigger server. Weird things happened and in the end i had no _real_ control of the cache, so i moved to C++.
