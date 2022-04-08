@@ -1,8 +1,8 @@
 # Antispambot
 
 [![Codacy Badge](https://app.codacy.com/project/badge/Grade/9804970630774ee6b62a900404df2c04)](https://www.codacy.com/gh/Commandserver/Antispambot/dashboard?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=Commandserver/Antispambot&amp;utm_campaign=Badge_Grade)
-![Lines of code](https://img.shields.io/tokei/lines/github/Commandserver/Antispambot) 
-![GitHub](https://img.shields.io/github/license/Commandserver/Antispambot) 
+![Lines of code](https://img.shields.io/tokei/lines/github/Commandserver/Antispambot)
+![GitHub](https://img.shields.io/github/license/Commandserver/Antispambot)
 
 **An efficient Discord Bot to prevent spam** written in C++. Tested on a large discord server and mitigates around 90% spam. Its well commented and can be easily adapt according to your needs.
 
@@ -47,16 +47,19 @@ Visit the [D++ library documentation](https://dpp.dev/) for more details.
 
 ## Running
 
-Edit the `config.json`. The configuration variables in the file should be self explainatory.
+Edit the `config.json`. The configuration variables in the file should be self-explanatory.
 
 All bad words are saved line by line in the `bad-words.txt`.
 
 The `bypass-config.txt` can be used to exclude users and roles from getting detected by the bot, just save the user- and role IDs line by line in it.
 
-All forbidden domains are stored in `domain-blacklist.txt`. Used to prevent the sharing of certan websites/urls.
+All forbidden domains are stored in `domain-blacklist.txt`. Used to prevent the sharing of certain websites/urls.
+
+The bot creates discord slash commands to manage the above three _.txt_-configs, therefor they're stored in extra files.
 
 The bot requires the **message content** and **server members** intent to be enabled!
-These permissions are required: `VIEW_CHANNEL`, `SEND_MESSAGES`, `MANAGE_MESSAGES`, `MANAGE_THREADS`, `MODERATE_MEMBERS`.
+Add the bot with the `bot` and `applications.commands` scope to your server!
+The bot needs the following permissions: `VIEW_CHANNEL`, `SEND_MESSAGES`, `MANAGE_MESSAGES`, `MANAGE_THREADS`, `MODERATE_MEMBERS`.
 
 I'd recommend running the bot with systemd, to keep the bot always online.
 
@@ -84,4 +87,4 @@ Be sure to leave a ⭐️ if you like the project and also be sure to contribute
 
 **Why C++?**
 
-I had pretty much the same bot in python, but i had problems with the message cache when it ran on a bigger server. Weird things happened and in the end i had no _real_ control of the cache, so i moved to C++.
+I had pretty much the same bot in python, but I had problems with the message cache when it ran on a bigger discord server. Weird things happened and in the end i had no _real_ control of the cache, so i moved to C++.
