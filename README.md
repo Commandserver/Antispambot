@@ -31,6 +31,7 @@ Currently only Linux is supported, but other UNIX-style platforms should build a
 * [cmake](https://cmake.org/) (version 3.16+)
 * [g++](https://gcc.gnu.org) (version 8 or higher)
 * [DPP](https://github.com/brainboxdotcc/DPP) (version 10.0.5)
+* [spdlog](https://github.com/gabime/spdlog)
 
 ## Building
 
