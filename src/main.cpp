@@ -709,7 +709,7 @@ int main() {
 			for (auto &s : same_messages_in_different_channels) {
 				channelMentions += fmt::format("<#{}>", s->channel_id);
 			}
-			mitigateSpam(fmt::format("Die gleiche Nachricht, in kürzester Zet, in {} Channeln:||{}||",
+			mitigateSpam(fmt::format("Die gleiche Nachricht, in kürzester Zeit, in {} Channeln:||{}||",
 									 same_messages_in_different_channels.size(), channelMentions), 86400 * (urlCount >= 1 ? 27 : 14), true); // maximum mute duration if contains url
 			return;
 		}
