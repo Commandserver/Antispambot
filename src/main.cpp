@@ -232,7 +232,7 @@ int main() {
 				}
 			}
 
-			if (fast_joined_member_count >= 12) { // when more than 12 members joined in the past 60 seconds
+			if (fast_joined_member_count >= 4) { // when more than 12 (currently 4 for testing) members joined in the past 60 seconds
 				if (!first_join) {
 					first_join = time(nullptr);
 				}
@@ -357,12 +357,6 @@ int main() {
 			return;
 		}
 
-		// do nothing when whitelisted channel
-		for (auto &id : config["excluded_channel_ids"]) {
-			if (event.msg.channel_id == id) {
-				return;
-			}
-		}
 		// do nothing when whitelisted category
 		auto *channel = dpp::find_channel(event.msg.channel_id);
 		if (channel and channel->parent_id) {
@@ -716,6 +710,12 @@ int main() {
 
         // too many repeated messages in the same channel
 		if (same_messages_in_same_channel.size() >= 4) {
+			// do nothing when whitelisted channel
+			for (auto &id : config["excluded_channel_ids"]) {
+				if (event.msg.channel_id == id) {
+					return;
+				}
+			}
 			mitigateSpam("Die selbe Nachricht zu oft wiederholt", 86400 * (urlCount >= 1 ? 27 : 8), true); // maximum mute duration if contains url
 			return;
 		}
