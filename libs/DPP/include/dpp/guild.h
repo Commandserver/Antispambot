@@ -125,6 +125,16 @@ enum guild_flags : uint32_t {
 };
 
 /**
+ * @brief Additional boolean flag values for guild, as guild_flags is full
+ */
+enum guild_flags_extra : uint8_t {
+	/** Guild has premium progress bar enabled */
+	g_premium_progress_bar_enabled =		0b00000001,
+	/** Guild can have an animated banner (doesn't mean it actually has one though) */
+	g_animated_banner =			0b00000010,
+};
+
+/**
  * @brief Various flags that can be used to indicate the status of a guild member
  */
 enum guild_member_flags : uint8_t {
@@ -370,7 +380,7 @@ public:
 	/** Guild name */
 	std::string name;
 
-	/** Server description for communities */
+	/** Server description */
 	std::string description;
 
 	/**
@@ -491,6 +501,11 @@ public:
 	 */
 	guild_nsfw_level_t nsfw_level;
 
+	/**
+	 * @brief Additional flags
+	 */
+	uint8_t flags_extra;
+
 	/** Default constructor, zeroes all values */
 	guild();
 
@@ -554,37 +569,37 @@ public:
 	 */
 	bool connect_member_voice(snowflake user_id, bool self_mute = false, bool self_deaf = false);
 
-    /**
+	/**
 	 * @brief Get the banner url of the guild if it have one, otherwise returns an empty string
 	 *
 	 * @param size The size of the banner in pixels. It can be any power of two between 16 and 4096. if not specified, the default sized banner is returned.
 	 * @return std::string banner url or empty string
 	 */
-    std::string get_banner_url(uint16_t size = 0) const;
+	std::string get_banner_url(uint16_t size = 0) const;
 
-    /**
+	/**
 	 * @brief Get the discovery splash url of the guild if it have one, otherwise returns an empty string
 	 *
 	 * @param size The size of the discovery splash in pixels. It can be any power of two between 16 and 4096. if not specified, the default sized discovery splash is returned.
 	 * @return std::string discovery splash url or empty string
 	 */
-    std::string get_discovery_splash_url(uint16_t size = 0) const;
+	std::string get_discovery_splash_url(uint16_t size = 0) const;
 
-    /**
+	/**
 	 * @brief Get the icon url of the guild if it have one, otherwise returns an empty string
 	 *
 	 * @param size The size of the icon in pixels. It can be any power of two between 16 and 4096. if not specified, the default sized icon is returned.
 	 * @return std::string icon url or empty string
 	 */
-    std::string get_icon_url(uint16_t size = 0) const;
+	std::string get_icon_url(uint16_t size = 0) const;
 
-    /**
+	/**
 	 * @brief Get the splash url of the guild if it have one, otherwise returns an empty string
 	 *
 	 * @param size The size of the splash in pixels. It can be any power of two between 16 and 4096. if not specified, the default sized splash is returned.
 	 * @return std::string splash url or empty string
 	 */
-    std::string get_splash_url(uint16_t size = 0) const;
+	std::string get_splash_url(uint16_t size = 0) const;
 
 	/**
 	 * @brief Set the name of the guild in the object
@@ -614,19 +629,19 @@ public:
 	bool widget_enabled() const;
 
 	/**
-	 * @brief Guild has an invite splash
-	 * @return bool has an invite splash
+	 * @brief Guild has access to set an invite splash background
+	 * @return bool can have an invite splash
 	 */
 	bool has_invite_splash() const;
 
 	/**
-	 * @brief Guild has VIP voice regions
-	 * @return bool has vip regions
+	 * @brief Guild has access to set 384kbps bitrate in voice
+	 * @return bool can have VIP voice regions
 	 */
 	bool has_vip_regions() const;
 
 	/**
-	 * @brief Guild can have a vanity url
+	 * @brief Guild has access to set a vanity URL
 	 * @return bool can have vanity url
 	 */
 	bool has_vanity_url() const;
@@ -650,14 +665,14 @@ public:
 	bool is_community() const;
 
 	/**
-	 * @brief Guild has commerce channels
-	 * @return bool has commerce guilds
+	 * @brief Guild has access to use commerce features
+	 * @return bool has commerce features enabled
 	 */
 	bool has_commerce() const;
 
 	/**
-	 * @brief Guild has news channels
-	 * @return bool has news channels
+	 * @brief Guild has access to create news channels
+	 * @return bool has news channels features enabled
 	 */
 	bool has_news() const;
 
@@ -674,14 +689,20 @@ public:
 	bool is_featureable() const;
 
 	/**
-	 * @brief Guild can have an animated icon
+	 * @brief Guild has access to set an animated guild banner image
+	 * @return bool can have animated banner image
+	 */
+	bool has_animated_banner() const;
+
+	/**
+	 * @brief Guild has access to set an animated guild icon
 	 * @return bool can have animated icon
 	 */
 	bool has_animated_icon() const;
 
 	/**
-	 * @brief Guild has a banner image
-	 * @return bool has banner image
+	 * @brief Guild has access to set a guild banner image
+	 * @return bool can have banner image
 	 */
 	bool has_banner() const;
 
@@ -692,7 +713,7 @@ public:
 	bool is_welcome_screen_enabled() const;
 
 	/**
-	 * @brief Guild has membership screening
+	 * @brief Guild has enabled membership screening
 	 * @return bool has membership screening
 	 */
 	bool has_member_verification_gate() const;
@@ -710,10 +731,10 @@ public:
 	bool has_animated_icon_hash() const;
 
 	/**
-	 * @brief Guild banner is animated gif
+	 * @brief Guild banner is actually an animated gif
 	 * @return bool is animated gif
 	 */
-	bool has_animated_banner_icon_hash() const;
+	bool has_animated_banner_hash() const;
 
 
 	/**
@@ -763,6 +784,12 @@ public:
 	 * @return bool has channel banners
 	 */
 	bool has_channel_banners() const;
+
+	/**
+	 * @brief True if the premium progress bar is enabled
+	 * @return bool has progress bar enabled
+	 */
+	bool has_premium_progress_bar_enabled() const;
 };
 
 /** A container of guilds */

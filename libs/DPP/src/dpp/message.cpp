@@ -57,10 +57,21 @@ component& component::fill_from_json(nlohmann::json* j) {
 		style = static_cast<component_style>(int8_not_null(j, "style"));
 		custom_id = string_not_null(j, "custom_id");
 		disabled = bool_not_null(j, "disabled");
+		if (j->contains("emoji")) {
+			json emo = (*j)["emoji"];
+			emoji.id = snowflake_not_null(&emo, "id");
+			emoji.name = string_not_null(&emo, "name");
+			emoji.animated = bool_not_null(&emo, "animated");
+		}
 	} else if (type == cot_selectmenu) {
 		label = "";
 		custom_id = string_not_null(j, "custom_id");
 		disabled = bool_not_null(j, "disabled");
+		if (j->contains("options")) {
+			for(json opt : (*j)["options"]) {
+				options.push_back(dpp::select_option().fill_from_json(&opt));
+			}
+		}
 	} else if (type == cot_text) {
 		custom_id = string_not_null(j, "custom_id");
 		type = (component_type)int8_not_null(j, "type");
@@ -87,6 +98,16 @@ component& component::add_component(const component& c)
 component& component::set_type(component_type ct)
 {
 	type = ct;
+	if (type == cot_text || type == cot_button) {
+		label = dpp::utility::utf8substr(label, 0, 80);
+	} else if (type == cot_selectmenu) {
+		label = dpp::utility::utf8substr(label, 0, 100);
+	}
+	if(type == cot_text) {
+		placeholder = dpp::utility::utf8substr(placeholder, 0, 100);
+	} else if (type == cot_selectmenu) {
+		placeholder = dpp::utility::utf8substr(placeholder, 0, 150);
+	}
 	return *this;
 }
 
@@ -95,7 +116,22 @@ component& component::set_label(const std::string &l)
 	if (type == cot_action_row) {
 		set_type(cot_button);
 	}
-	label = utility::utf8substr(l, 0, 80);
+	if (type == cot_text || type == cot_button) {
+		label = dpp::utility::utf8substr(l, 0, 80);
+	} else if (type == cot_selectmenu) {
+		label = dpp::utility::utf8substr(l, 0, 100);
+	} else {
+		label = l;
+	}
+	return *this;
+}
+
+component& component::set_default_value(const std::string &val)
+{
+	if (type == cot_action_row) {
+		set_type(cot_text);
+	}
+	value = dpp::utility::utf8substr(val, 0, 4000);
 	return *this;
 }
 
@@ -136,6 +172,15 @@ component& component::set_disabled(bool disable)
 		set_type(cot_button);
 	}
 	disabled = disable;
+	return *this;
+}
+
+component& component::set_required(bool require)
+{
+	if (type == cot_action_row) {
+		set_type(cot_button);
+	}
+	required = require;
 	return *this;
 }
 
@@ -184,6 +229,9 @@ void to_json(json& j, const component& cp) {
 		j["label"] = cp.label;
 		j["required"] = cp.required;
 		j["style"] = int(cp.text_style);
+		if (std::holds_alternative<std::string>(cp.value) && !std::get<std::string>(cp.value).empty()) {
+			j["value"] = std::get<std::string>(cp.value);
+		}
 		if (!cp.custom_id.empty()) {
 			j["custom_id"] = cp.custom_id;
 		}
@@ -221,7 +269,6 @@ void to_json(json& j, const component& cp) {
 			j["emoji"]["name"] = cp.emoji.name;
 		}
 	} else if (cp.type == cot_selectmenu) {
-
 		j["type"] = cp.type;
 		j["custom_id"] = cp.custom_id;
 		//j["disabled"] = cp.disabled;
@@ -302,9 +349,27 @@ select_option& select_option::set_animated(bool anim) {
 	return *this;
 }
 
+select_option& select_option::fill_from_json(nlohmann::json* j) {
+	label = string_not_null(j, "label");
+	value = string_not_null(j, "value");
+	description = string_not_null(j, "description");
+	if (j->contains("emoji")) {
+		const json& emoj = (*j)["emoji"];
+		emoji.animated = bool_not_null(&emoj, "animated");
+		emoji.name = string_not_null(&emoj, "name");
+		emoji.id = snowflake_not_null(&emoj, "id");
+	}
+	return *this;
+}
 
 component& component::set_placeholder(const std::string &_placeholder) {
-	placeholder = dpp::utility::utf8substr(_placeholder, 0, 150);
+	if(type == cot_text) {
+		placeholder = dpp::utility::utf8substr(_placeholder, 0, 100);
+	} else if (type == cot_selectmenu) {
+		placeholder = dpp::utility::utf8substr(_placeholder, 0, 150);
+	} else {
+		placeholder = _placeholder;
+	}
 	return *this;
 }
 
@@ -695,7 +760,7 @@ std::string message::build_json(bool with_id, bool is_interaction_response) cons
 
 	j["allowed_mentions"] = json::object();
 	j["allowed_mentions"]["parse"] = json::array();
-	if (allowed_mentions.parse_everyone || allowed_mentions.parse_roles || allowed_mentions.parse_users || !allowed_mentions.replied_user || allowed_mentions.users.size() || allowed_mentions.roles.size()) {
+	if (allowed_mentions.parse_everyone || allowed_mentions.parse_roles || allowed_mentions.parse_users || allowed_mentions.replied_user || allowed_mentions.users.size() || allowed_mentions.roles.size()) {
 		if (allowed_mentions.parse_everyone) {
 			j["allowed_mentions"]["parse"].push_back("everyone");
 		}
@@ -924,6 +989,12 @@ message& message::fill_from_json(json* d, cache_policy_t cp) {
 		json & el = (*d)["embeds"];
 		for (auto& e : el) {
 			this->embeds.emplace_back(embed(&e));
+		}
+	}
+	if (d->find("components") != d->end()) {
+		json & el = (*d)["components"];
+		for (auto& e : el) {
+			this->components.emplace_back(component().fill_from_json(&e));
 		}
 	}
 	this->content = string_not_null(d, "content");

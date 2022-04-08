@@ -66,6 +66,8 @@
 #include <dpp/queues.h>
 #include <dpp/commandhandler.h>
 #include <dpp/once.h>
+#include <dpp/sync.h>
+#include <dpp/colors.h>
 
 namespace dpp {
 

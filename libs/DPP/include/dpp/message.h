@@ -75,7 +75,7 @@ enum component_style : uint8_t {
 /**
  * @brief An option for a select component
  */
-struct DPP_EXPORT select_option {
+struct DPP_EXPORT select_option : public json_interface<select_option> {
 	/**
 	 * @brief Label for option
 	 */
@@ -126,6 +126,11 @@ struct DPP_EXPORT select_option {
 	 * @brief Construct a new select option object
 	 */
 	select_option();
+
+	/**
+	 * @brief Destructs the select option object.
+	 */
+	virtual ~select_option() = default;
 
 	/**
 	 * @brief Construct a new select option object
@@ -185,6 +190,12 @@ struct DPP_EXPORT select_option {
 	 * @return select_option& reference to self for chaining
 	 */
 	select_option& set_animated(bool anim);
+
+	/** Read class values from json object
+	 * @param j A json object to read from
+	 * @return A reference to self
+	 */
+	select_option& fill_from_json(nlohmann::json* j);
 };
 
 /**
@@ -271,7 +282,8 @@ public:
 	 */
 	bool required;
 
-	/** Current value (only filled or valid when populated from an on_form_submit event)
+	/** Value of the modal (filled or valid when populated from an
+	 * on_form_submit event, or from the set_value function)
 	 */
 	std::variant<std::monostate, std::string, int64_t, double> value;
 
@@ -342,6 +354,16 @@ public:
 	component& set_label(const std::string &label);
 
 	/**
+	 * @brief Set the default value of the text input component.
+	 * For action rows, this field is ignored. Setting the
+	 * value will auto-set the type to dpp::cot_text.
+	 *
+	 * @param value Value text to set. It will be truncated to the maximum length of 4000 UTF-8 characters.
+	 * @return component& Reference to self
+	 */
+	component& set_default_value(const std::string &val);
+
+	/**
 	 * @brief Set the url for dpp::cos_link types.
 	 * Calling this function sets the style to dpp::cos_link
 	 * and the type to dpp::cot_button.
@@ -384,9 +406,20 @@ public:
 	component& set_disabled(bool disable);
 
 	/**
+	 * @brief Set if this component is required.
+	 * Defaults to false on all created components.
+	 *
+	 * @param require True to require this, false to make it optional.
+	 * @return component& Reference to self
+	 */
+	component& set_required(bool require);
+
+	/**
 	 * @brief Set the placeholder
 	 * 
-	 * @param placeholder placeholder string. It will be truncated to the maximum length of 150 UTF-8 characters.
+	 * @param placeholder placeholder string. It will be truncated to the
+	 * maximum length of 150 UTF-8 characters for select menus, and 100 UTF-8
+	 * characters for modals.
 	 * @return component& Reference to self
 	 */
 	component& set_placeholder(const std::string &placeholder);
@@ -610,7 +643,7 @@ struct DPP_EXPORT embed {
 
 	 /** Set the footer of the embed. Returns the embed itself so these method calls may be "chained"
 	  * @param text string to set as footer text. It will be truncated to the maximum length of 2048 UTF-8 characters.
-	  * @param icon_url url to set as footer icon url
+	  * @param icon_url an url to set as footer icon url
 	  * @return A reference to self
 	  */
 	embed& set_footer(const std::string& text, const std::string& icon_url);

@@ -25,6 +25,8 @@ int main()
 {
 	std::string token(get_token());
 
+	std::cout << "Running unit tests. Guild ID: " << TEST_GUILD_ID << " Text Channel ID: " << TEST_TEXT_CHANNEL_ID << " VC ID: " << TEST_VC_ID << " User ID: " << TEST_USER_ID << " Event ID: " << TEST_EVENT_ID << "\n";
+
 	std::string test_to_escape = "*** _This is a test_ ***\n```cpp\n\
 int main() {\n\
     /* Comment */\n\
@@ -33,6 +35,15 @@ int main() {\n\
 };\n\
 ```\n\
 Markdown lol ||spoiler|| ~~strikethrough~~ `small *code* block`\n";
+
+	set_test("COMPARISON", false);
+	dpp::user u1;
+	dpp::user u2;
+	dpp::user u3;
+	u1.id = u2.id = 666;
+	u3.id = 777;
+	set_test("COMPARISON", u1 == u2 && u1 != u3);
+
 
 	set_test("MD_ESC_1", false);
 	set_test("MD_ESC_2", false);
@@ -178,6 +189,7 @@ Markdown lol \\|\\|spoiler\\|\\| \\~\\~strikethrough\\~\\~ \\`small \\*code\\* b
 	set_test("CLUSTER", false);
 	try {
 		dpp::cluster bot(token, dpp::i_all_intents);
+		bot.set_websocket_protocol(dpp::ws_etf);
 		set_test("CLUSTER", true);
 		set_test("CONNECTION", false);
 		set_test("GUILDCREATE", false);
@@ -230,22 +242,10 @@ Markdown lol \\|\\|spoiler\\|\\| \\~\\~strikethrough\\~\\~ \\`small \\*code\\* b
 												set_test("REACT", false);
 											}
 										});
-										bot.message_delete(m.id, TEST_TEXT_CHANNEL_ID, [&bot](const dpp::confirmation_callback_t &callback) {
+										bot.message_delete(m.id, TEST_TEXT_CHANNEL_ID, [](const dpp::confirmation_callback_t &callback) {
 
 											if (!callback.is_error()) {
 												set_test("MESSAGEDELETE", true);
-												set_test("CACHE", false);
-
-												dpp::guild* g = dpp::find_guild(TEST_GUILD_ID);
-
-												if (g) {
-													set_test("CACHE", true);
-													set_test("VOICECONN", false);
-													dpp::discord_client* s = bot.get_shard(0);
-													s->connect_voice(g->id, TEST_VC_ID, false, false);
-												} else {
-													set_test("CACHE", false);
-												}
 											} else {
 												set_test("MESSAGEDELETE", false);
 											}
@@ -305,11 +305,26 @@ Markdown lol \\|\\|spoiler\\|\\| \\~\\~strikethrough\\~\\~ \\`small \\*code\\* b
 			}
 		});
 
+		set_test("SYNC", false);
+		dpp::message m = dpp::sync<dpp::message>(&bot, &dpp::cluster::message_create, dpp::message(TEST_TEXT_CHANNEL_ID, "TEST"));
+		set_test("SYNC", m.content == "TEST");
+
 		bot.on_guild_create([&](const dpp::guild_create_t & event) {
 			if (event.created->id == TEST_GUILD_ID) {
 				set_test("GUILDCREATE", true);
 				if (event.presences.size() && event.presences.begin()->second.user_id > 0) {
 					set_test("PRESENCE", true);
+				}
+				dpp::guild* g = dpp::find_guild(TEST_GUILD_ID);
+				set_test("CACHE", false);
+				if (g) {
+					set_test("CACHE", true);
+					set_test("VOICECONN", false);
+					dpp::discord_client* s = bot.get_shard(0);
+					s->connect_voice(g->id, TEST_VC_ID, false, false);
+				}
+				else {
+					set_test("CACHE", false);
 				}
 			}
 		});
@@ -346,10 +361,12 @@ Markdown lol \\|\\|spoiler\\|\\| \\~\\~strikethrough\\~\\~ \\`small \\*code\\* b
 						if (m.channel_id == ch_id) {
 							set_test("MSGCREATESEND", true);
 						} else {
+							bot.log(dpp::ll_debug, cc.http_info.body);
 							set_test("MSGCREATESEND", false);
 						}
 						bot.message_delete(m.id, m.channel_id);
-					} else { 
+					} else {
+						bot.log(dpp::ll_debug, cc.http_info.body);
 						set_test("MSGCREATESEND", false);
 					}
 				});
@@ -372,6 +389,7 @@ Markdown lol \\|\\|spoiler\\|\\| \\~\\~strikethrough\\~\\~ \\`small \\*code\\* b
 							}
 							set_test("MSGCREATEREPLY", true);
 						} else {
+							bot.log(dpp::ll_debug, cc.http_info.body);
 							set_test("MSGCREATEREPLY", false);
 						}
 						bot.message_delete(m.id, m.channel_id);
@@ -394,7 +412,7 @@ Markdown lol \\|\\|spoiler\\|\\| \\~\\~strikethrough\\~\\~ \\`small \\*code\\* b
 
 		set_test("TIMERSTART", false);
 		uint32_t ticks = 0;
-		dpp::timer th = bot.start_timer([&]() {
+		dpp::timer th = bot.start_timer([&](dpp::timer timer_handle) {
 			if (ticks == 5) {
 				/* The simple test timer ticks every second.
 				 * If we get to 5 seconds, we know the timer is working.
@@ -411,7 +429,7 @@ Markdown lol \\|\\|spoiler\\|\\| \\~\\~strikethrough\\~\\~ \\`small \\*code\\* b
 
 		set_test("ONESHOT", false);
 		bool once = false;
-		dpp::oneshot_timer ost(&bot, 5, [&]() {
+		dpp::oneshot_timer ost(&bot, 5, [&](dpp::timer timer_handle) {
 			if (!once) {
 				set_test("ONESHOT", true);
 			} else {
@@ -439,7 +457,7 @@ Markdown lol \\|\\|spoiler\\|\\| \\~\\~strikethrough\\~\\~ \\`small \\*code\\* b
 		singleparam_api_test_list(roles_get, TEST_GUILD_ID, dpp::role_map, "GETROLES");
 		singleparam_api_test_list(channels_get, TEST_GUILD_ID, dpp::channel_map, "GETCHANS");
 		singleparam_api_test_list(guild_get_invites, TEST_GUILD_ID, dpp::invite_map, "GETINVS");
-		singleparam_api_test_list(guild_get_bans, TEST_GUILD_ID, dpp::ban_map, "GETBANS");
+		multiparam_api_test_list(guild_get_bans, TEST_GUILD_ID, dpp::ban_map, "GETBANS");
 		singleparam_api_test_list(channel_pins_get, TEST_TEXT_CHANNEL_ID, dpp::message_map, "GETPINS");
 		singleparam_api_test_list(guild_events_get, TEST_GUILD_ID, dpp::scheduled_event_map, "GETEVENTS");
 		twoparam_api_test(guild_event_get, TEST_GUILD_ID, TEST_EVENT_ID, dpp::scheduled_event, "GETEVENT");

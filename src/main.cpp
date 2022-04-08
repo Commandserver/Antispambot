@@ -109,7 +109,7 @@ int main() {
 
 	time_t first_join = 0;
 
-	bot.start_timer([&guild_member_cache, &first_join, &fast_joined_members, &config, &bot, &log](){
+	bot.start_timer([&guild_member_cache, &first_join, &fast_joined_members, &config, &bot, &log](unsigned int timerId){
 
 		int join_pause = 0; // seconds since the last join (excludes the current join event)
 
@@ -270,7 +270,7 @@ int main() {
 			time_t muteUntil = time(nullptr) + muteDuration;
 			if (member.communication_disabled_until < muteUntil) {
 				member.set_communication_disabled_until(muteUntil);
-				bot.guild_edit_member(member, [&bot, userId](const dpp::confirmation_callback_t &e) {
+				bot.guild_member_timeout(guildId, userId, muteUntil, [&bot, userId](const dpp::confirmation_callback_t &e) {
 					if (e.is_error()) {
 						bot.log(dpp::ll_error, "cannot timeout member " + e.http_info.body);
 					} else {
@@ -538,7 +538,8 @@ int main() {
 				}
 			}
 
-			// check for bad word usage
+			/* check for bad word usage.
+			   It loops through each word in the message and checks if its starting or ending with a bad word. */
 			{
 				string message = event.msg.content;
 				regex replacementRegex(R"([!,.\n\r\t\0])", regex_constants::icase);
