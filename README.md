@@ -53,7 +53,7 @@ All bad words are saved line by line in the `bad-words.txt`.
 
 The `bypass-config.txt` can be used to exclude users and roles from getting detected by the bot, just save the user- and role IDs line by line in it.
 
-All forbidden domains are stored in `domain-blacklist.txt`. Used to prevent the sharing of certain websites/urls.
+All forbidden domains are stored in `domain-blacklist.txt`. Used to prevent the sharing of certain websites/urls. You can also add top-level-domains to them.
 
 The bot creates discord slash commands to manage the above three _.txt_-configs, therefor they're stored in extra files.
 
