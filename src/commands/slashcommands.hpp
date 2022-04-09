@@ -67,19 +67,6 @@ namespace commands {
 																				 "Rolle oder User", true))
 							 )
 		);
-		m.add_option(dpp::command_option(dpp::co_sub_command_group, "extensionblacklist",
-										 "Verwalte verbotene Datei-endungen")
-							 .add_option(dpp::command_option(dpp::co_sub_command, "add",
-															 "Füge verbotene Datei-endungen zur Blacklist hinzu")
-												 .add_option(dpp::command_option(dpp::co_string, "file_extension",
-																				 "Discord Server ID", true))
-							 )
-							 .add_option(dpp::command_option(dpp::co_sub_command, "remove",
-															 "Entferne verbotene Datei-endungen von der Blacklist")
-												 .add_option(dpp::command_option(dpp::co_string, "file_extension",
-																				 "Discord Server ID", true))
-							 )
-		);
 
 		bot.guild_command_create(m, config["guild-id"], [&bot](const dpp::confirmation_callback_t &event) {
 			if (event.is_error()) {
