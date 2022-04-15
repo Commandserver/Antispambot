@@ -36,7 +36,7 @@ static std::string http_version = "DiscordBot (https://github.com/brainboxdotcc/
 static const char* DISCORD_HOST = "https://discord.com";
 
 http_request::http_request(const std::string &_endpoint, const std::string &_parameters, http_completion_event completion, const std::string &_postdata, http_method _method, const std::string &audit_reason, const std::string &filename, const std::string &filecontent)
- : complete_handler(completion), completed(false), non_discord(false), endpoint(_endpoint), parameters(_parameters), postdata(_postdata),  method(_method), reason(audit_reason), mimetype("application/json")
+ : complete_handler(completion), completed(false), non_discord(false), endpoint(_endpoint), parameters(_parameters), postdata(_postdata),  method(_method), reason(audit_reason), mimetype("application/json"), waiting(false)
 {
 		if (!filename.empty())
 			file_name.push_back(filename);
@@ -45,13 +45,13 @@ http_request::http_request(const std::string &_endpoint, const std::string &_par
 }
 
 http_request::http_request(const std::string &_endpoint, const std::string &_parameters, http_completion_event completion, const std::string &_postdata, http_method method, const std::string &audit_reason, const std::vector<std::string> &filename, const std::vector<std::string> &filecontent)
- : complete_handler(completion), completed(false), non_discord(false), endpoint(_endpoint), parameters(_parameters), postdata(_postdata),  method(method), reason(audit_reason), file_name(filename), file_content(filecontent), mimetype("application/json")
+ : complete_handler(completion), completed(false), non_discord(false), endpoint(_endpoint), parameters(_parameters), postdata(_postdata),  method(method), reason(audit_reason), file_name(filename), file_content(filecontent), mimetype("application/json"), waiting(false)
 {
 }
 
 
 http_request::http_request(const std::string &_url, http_completion_event completion, http_method _method, const std::string &_postdata, const std::string &_mimetype, const std::multimap<std::string, std::string> &_headers)
- : complete_handler(completion), completed(false), non_discord(true), endpoint(_url), postdata(_postdata), method(_method), mimetype(_mimetype), req_headers(_headers)
+ : complete_handler(completion), completed(false), non_discord(true), endpoint(_url), postdata(_postdata), method(_method), mimetype(_mimetype), req_headers(_headers), waiting(false)
 {
 }
 
@@ -82,14 +82,15 @@ void populate_result(const std::string &url, cluster* owner, http_request_comple
 	if (res.get_header("x-ratelimit-retry-after") != "") {
 		rv.ratelimit_retry_after = from_string<uint64_t>(res.get_header("x-ratelimit-retry-after"));
 	}
+	uint64_t rl_timer = rv.ratelimit_retry_after ? rv.ratelimit_retry_after : rv.ratelimit_reset_after;
 	if (rv.status == 429) {
-		owner->log(ll_warning, fmt::format("Rate limited on endpoint {}, reset after {}s!", url, rv.ratelimit_retry_after ? rv.ratelimit_retry_after : rv.ratelimit_reset_after));
+		owner->log(ll_warning, fmt::format("Rate limited on endpoint {}, reset after {}s!", url, rl_timer));
 	}
 	if (url != "/api/v" DISCORD_API_VERSION "/gateway/bot") {	// Squelch this particular api endpoint or it generates a warning the minute we boot a cluster
 		if (rv.ratelimit_global) {
-			owner->log(ll_warning, fmt::format("At global rate limit on endpoint {}, reset after {}s", url, rv.ratelimit_retry_after ? rv.ratelimit_retry_after : rv.ratelimit_reset_after));
-		} else if (rv.ratelimit_remaining == 1) {
-			owner->log(ll_warning, fmt::format("Near endpoint {} rate limit, reset after {}s", url, rv.ratelimit_retry_after ? rv.ratelimit_retry_after : rv.ratelimit_reset_after));
+			owner->log(ll_warning, fmt::format("At global rate limit on endpoint {}, reset after {}s", url, rl_timer));
+		} else if (rv.ratelimit_remaining == 0 && rl_timer > 0) {
+			owner->log(ll_debug, fmt::format("Waiting for endpoint {} rate limit, next request in {}s", url, rl_timer));
 		}
 	}
 }
@@ -179,25 +180,52 @@ http_request_completion_t http_request::run(cluster* owner) {
 	return rv;
 }
 
-request_queue::request_queue(class cluster* owner) : creator(owner), terminating(false), globally_ratelimited(false), globally_limited_for(0)
+request_queue::request_queue(class cluster* owner, uint32_t request_threads) : creator(owner), terminating(false), globally_ratelimited(false), globally_limited_for(0), in_thread_pool_size(request_threads)
 {
-	in_thread = new std::thread(&request_queue::in_loop, this);
+	for (uint32_t in_alloc = 0; in_alloc < in_thread_pool_size; ++in_alloc) {
+		requests_in.push_back(new in_thread(owner, this));
+	}
 	out_thread = new std::thread(&request_queue::out_loop, this);
+}
+
+void request_queue::add_request_threads(uint32_t request_threads)
+{
+	for (uint32_t in_alloc_ex = 0; in_alloc_ex < request_threads; ++in_alloc_ex) {
+		requests_in.push_back(new in_thread(creator, this));
+	}
+	in_thread_pool_size += request_threads;
+}
+
+uint32_t request_queue::get_request_thread_count() const
+{
+	return in_thread_pool_size;
+}
+
+in_thread::in_thread(class cluster* owner, class request_queue* req_q) : terminating(false), requests(req_q), creator(owner)
+{
+	this->in_thr = new std::thread(&in_thread::in_loop, this);
+}
+
+in_thread::~in_thread()
+{
+	terminating = true;
+	in_ready.notify_one();
+	in_thr->join();
+	delete in_thr;
 }
 
 request_queue::~request_queue()
 {
-	creator->log(ll_debug, "REST request_queue shutting down");
 	terminating = true;
-	in_ready.notify_one();
 	out_ready.notify_one();
-	in_thread->join();
 	out_thread->join();
-	delete in_thread;
 	delete out_thread;
+	for (auto& ri : requests_in) {
+		delete ri;
+	}
 }
 
-void request_queue::in_loop()
+void in_thread::in_loop()
 {
 	while (!terminating) {
 		std::mutex mtx;
@@ -205,7 +233,7 @@ void request_queue::in_loop()
 		in_ready.wait_for(lock, std::chrono::milliseconds(100));
 		/* New request to be sent! */
 
-		if (!globally_ratelimited) {
+		if (!requests->globally_ratelimited) {
 
 			std::map<std::string, std::vector<http_request*>> requests_in_copy;
 			{
@@ -234,9 +262,10 @@ void request_queue::in_loop()
 								/* Time has passed, we can process this bucket again. send its request. */
 								rv = req->run(creator);
 							} else {
-								/* Time not up yet, emit signal and wait */
-								std::this_thread::sleep_for(std::chrono::milliseconds(50));
-								in_ready.notify_one();
+								if (!req->waiting) {
+									req->waiting = true;
+								}
+								/* Time not up yet, wait more */
 								break;
 							}
 						} else {
@@ -254,20 +283,20 @@ void request_queue::in_loop()
 					newbucket.reset_after = rv.ratelimit_reset_after;
 					newbucket.retry_after = rv.ratelimit_retry_after;
 					newbucket.timestamp = time(NULL);
-					globally_ratelimited = rv.ratelimit_global;
-					if (globally_ratelimited) {
-						globally_limited_for = (newbucket.retry_after ? newbucket.retry_after : newbucket.reset_after);
+					requests->globally_ratelimited = rv.ratelimit_global;
+					if (requests->globally_ratelimited) {
+						requests->globally_limited_for = (newbucket.retry_after ? newbucket.retry_after : newbucket.reset_after);
 					}
 					buckets[req->endpoint] = newbucket;
 
 					/* Make a new entry in the completion list and notify */
+					http_request_completion_t* hrc = new http_request_completion_t();
+					*hrc = rv;
 					{
-						std::unique_lock lock(out_mutex);
-						http_request_completion_t* hrc = new http_request_completion_t();
-						*hrc = rv;
-						responses_out.push(std::make_pair(hrc, req));
-						out_ready.notify_one();
+						std::unique_lock lock(requests->out_mutex);
+						requests->responses_out.push(std::make_pair(hrc, req));
 					}
+					requests->out_ready.notify_one();
 				}
 			}
 
@@ -290,15 +319,14 @@ void request_queue::in_loop()
 			}
 
 		} else {
-			if (globally_limited_for > 0) {
-				std::this_thread::sleep_for(std::chrono::seconds(globally_limited_for));
-				globally_limited_for = 0;
+			if (requests->globally_limited_for > 0) {
+				std::this_thread::sleep_for(std::chrono::seconds(requests->globally_limited_for));
+				requests->globally_limited_for = 0;
 			}
-			globally_ratelimited = false;
+			requests->globally_ratelimited = false;
 			in_ready.notify_one();
 		}
 	}
-	creator->log(ll_debug, "REST in-queue shutting down");
 }
 
 void request_queue::out_loop()
@@ -307,20 +335,17 @@ void request_queue::out_loop()
 
 		std::mutex mtx;
 		std::unique_lock<std::mutex> lock{ mtx };			
-		out_ready.wait_for(lock, std::chrono::milliseconds(100));
+		out_ready.wait_for(lock, std::chrono::milliseconds(50));
 		time_t now = time(nullptr);
 
 		/* A request has been completed! */
 		std::pair<http_request_completion_t*, http_request*> queue_head = {};
-		bool pop_element = false;
 		{
-			std::shared_lock lock(out_mutex);
-			pop_element = responses_out.size();
-		}
-		if (pop_element) {
 			std::unique_lock lock(out_mutex);
-			queue_head = responses_out.front();
-			responses_out.pop();
+			if (responses_out.size()) {
+				queue_head = responses_out.front();
+				responses_out.pop();
+			}
 		}
 
 		if (queue_head.first && queue_head.second) {
@@ -336,17 +361,44 @@ void request_queue::out_loop()
 			responses_to_delete.erase(responses_to_delete.begin());
 		}
 	}
-	creator->log(ll_debug, "REST out-queue shutting down");
 }
 
 /* Post a http_request into the queue */
-void request_queue::post_request(http_request* req)
+void in_thread::post_request(http_request* req)
 {
 	{
 		std::unique_lock lock(in_mutex);
 		requests_in[req->endpoint].push_back(req);
 	}
 	in_ready.notify_one();
+}
+
+/* Simple hash function for hashing urls into thread pool values,
+ * ensuring that the same url always ends up on the same thread,
+ * which means that it will be part of the same ratelimit bucket.
+ * I did consider std::hash for this, but std::hash returned even
+ * numbers for absolutely every string i passed it on g++ 10.0,
+ * so this was a no-no. There are also much bigger more complex
+ * hash functions that claim to be really fast, but this is
+ * readable and small and fits the requirement exactly.
+ */
+inline uint32_t hash(const char *s)
+{
+	uint32_t hashval;
+	for (hashval = 17; *s != 0; s++)
+		hashval = *s + 31 * hashval;
+	return hashval;
+}
+
+/* Post a http_request into a request queue */
+void request_queue::post_request(http_request* req)
+{
+	requests_in[hash(req->endpoint.c_str()) % in_thread_pool_size]->post_request(req);
+}
+
+bool request_queue::is_globally_ratelimited() const
+{
+	return this->globally_ratelimited;
 }
 
 };

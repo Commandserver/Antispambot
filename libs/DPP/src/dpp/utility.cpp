@@ -104,7 +104,7 @@ namespace dpp {
 			secs = (uint8_t)(diff % 60);
 		}
 
-		std::string uptime::to_string() {
+		std::string uptime::to_string() const {
 			if (hours == 0 && days == 0) {
 				return fmt::format("{:02d}:{:02d}", mins, secs);
 			} else {
@@ -112,16 +112,20 @@ namespace dpp {
 			}
 		}
 
-		uint64_t uptime::to_secs() {
+		uint64_t uptime::to_secs() const {
 			return secs + (mins * 60) + (hours * 60 * 60) + (days * 60 * 60 * 24);
 		}
 
-		uint64_t uptime::to_msecs() {
+		uint64_t uptime::to_msecs() const {
 			return to_secs() * 1000;
 		}
 
-		iconhash::iconhash() : first(0), second(0) {
+		iconhash::iconhash(uint64_t _first, uint64_t _second) : first(_first), second(_second) {
 		}
+
+		iconhash::iconhash(const iconhash&) = default;
+
+		iconhash::~iconhash() = default;
 
 		void iconhash::set(const std::string &hash) {
 			std::string clean_hash(hash);
@@ -148,6 +152,10 @@ namespace dpp {
 		iconhash& iconhash::operator=(const std::string &assignment) {
 			set(assignment);
 			return *this;
+		}
+
+		bool iconhash::operator==(const iconhash& other) const {
+			return other.first == first && other.second == second;
 		}
 
 		std::string iconhash::to_string() const {
@@ -363,16 +371,6 @@ namespace dpp {
 			return [](const dpp::log_t& event) {
 				if (event.severity > dpp::ll_trace) {
 					std::cout << "[" << dpp::utility::current_date_time() << "] " << dpp::utility::loglevel(event.severity) << ": " << event.message << "\n";
-				}
-			};
-		}
-
-		std::function<void(const dpp::confirmation_callback_t& detail)> log_error() {
-			return [](const dpp::confirmation_callback_t& detail) {
-				if (detail.is_error()) {
-					if (detail.bot) {
-						detail.bot->log(dpp::ll_error, fmt::format("Error {} [{}] on API request, returned content was: {}", detail.get_error().code, detail.get_error().message, detail.http_info.body));
-					}
 				}
 			};
 		}
