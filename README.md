@@ -37,6 +37,7 @@ Currently only Linux is supported, but other UNIX-style platforms should build a
 
 ```bash
 mkdir build
+cd build
 cmake ..
 make -j8
 ```
