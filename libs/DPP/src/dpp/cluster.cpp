@@ -62,14 +62,14 @@ std::function<void()> make_intent_warning(cluster* cl, const intents required_in
 	};
 }
 
-cluster::cluster(const std::string &_token, uint32_t _intents, uint32_t _shards, uint32_t _cluster_id, uint32_t _maxclusters, bool comp, cache_policy_t policy)
+cluster::cluster(const std::string &_token, uint32_t _intents, uint32_t _shards, uint32_t _cluster_id, uint32_t _maxclusters, bool comp, cache_policy_t policy, uint32_t request_threads)
 	: rest(nullptr), raw_rest(nullptr), compressed(comp), start_time(0), token(_token), last_identify(time(NULL) - 5), intents(_intents),
 	numshards(_shards), cluster_id(_cluster_id), maxclusters(_maxclusters), rest_ping(0.0), cache_policy(policy), ws_mode(ws_json)
 	
 {
 	/* Instantiate REST request queues */
-	rest = new request_queue(this);
-	raw_rest = new request_queue(this);
+	rest = new request_queue(this, request_threads);
+	raw_rest = new request_queue(this, request_threads);
 
 	/* Add checks for missing intents, these emit a one-off warning to the log if bound without the right intents */
 	std::function<void()> message_intents_warning = make_intent_warning(this, i_message_content, "You have attached an event to cluster::on_message_*() but have not specified the privileged intent dpp::i_message_content. Message content, embeds, attachments, and components on received guild messages will be empty.");
@@ -99,6 +99,15 @@ cluster::~cluster()
 	WSACleanup();
 #endif
 }
+
+request_queue* cluster::get_rest() {
+	return rest;
+}
+
+request_queue* cluster::get_raw_rest() {
+	return raw_rest;
+}
+
 
 cluster& cluster::set_websocket_protocol(websocket_protocol_t mode) {
 	ws_mode = mode;
@@ -134,8 +143,20 @@ void cluster::start(bool return_after) {
 
 	/* Start up all shards */
 	if (numshards == 0) {
-		gateway g = dpp::sync<gateway>(this, &cluster::get_gateway_bot);
-		numshards = g.shards;
+		gateway g;
+		try {
+			g = dpp::sync<gateway>(this, &cluster::get_gateway_bot);
+			numshards = g.shards;
+		}
+		catch (const dpp::rest_exception& e) {
+			if (std::string(e.what()) == "401: Unauthorized") {
+				/* Throw special form of exception for invalid token */
+				throw dpp::invalid_token_exception("Invalid bot token (401: Unauthorized when getting gateway shard count)");
+			} else {
+				/* Rethrow */
+				throw e;
+			}
+		}
 		if (g.shards) {
 			log(ll_info, fmt::format("Auto Shard: Bot requires {} shard{}", g.shards, (g.shards > 1) ? "s" : ""));
 			if (g.session_start_remaining < g.shards) {
