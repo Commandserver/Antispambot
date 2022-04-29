@@ -15,6 +15,8 @@
 #include "CachedGuildMember.h"
 #include "commands/slashcommands.hpp"
 
+#define DAY 86400 /// amount of seconds of a day
+
 using namespace std;
 
 
@@ -104,7 +106,7 @@ int main() {
 	/// Caches all joining members for raid detection
 	dpp::cache<CachedGuildMember> guild_member_cache;
 
-	/// usually empty. filled with members that are too fast joined, to kick them
+	/// usually empty. filled with members that are too fast joined
 	dpp::cache<CachedGuildMember> fast_joined_members;
 
 	time_t first_join = 0;
@@ -158,7 +160,7 @@ int main() {
 			dpp::embed embed;
 			embed.set_color(0xff0000);
 			embed.set_timestamp(first_join);
-			embed.set_title(fmt::format(":o: Raid erkannt mit {} Usern", fast_joined_members.count()));
+			embed.set_title(fmt::format(":o: Raid detected with {} Users", fast_joined_members.count()));
 			dpp::guild_member *firstUser;
 			dpp::guild_member *lastUser;
 			string memberStr;
@@ -179,8 +181,8 @@ int main() {
 				}
 			}
 
-			embed.add_field("Erster User", fmt::format("Benutzer: {}\nGejoint: {}\n\u200b", firstUser->get_mention(), dpp::utility::timestamp(firstUser->joined_at, dpp::utility::tf_long_time)), true);
-			embed.add_field("Letzter User", fmt::format("Benutzer: {}\nGejoint: {}\n\u200b", lastUser->get_mention(), dpp::utility::timestamp(lastUser->joined_at, dpp::utility::tf_long_time)), true);
+			embed.add_field("First user", fmt::format("User: {}\nJoined: {}\n\u200b", firstUser->get_mention(), dpp::utility::timestamp(firstUser->joined_at, dpp::utility::tf_long_time)), true);
+			embed.add_field("Last user", fmt::format("User: {}\nJoined: {}\n\u200b", lastUser->get_mention(), dpp::utility::timestamp(lastUser->joined_at, dpp::utility::tf_long_time)), true);
 			embed.set_description(memberStr);
 			dpp::message msg;
 			msg.channel_id = config["log-channel-id"];
@@ -232,7 +234,10 @@ int main() {
 				}
 			}
 
-			if (fast_joined_member_count >= 12) { // when more than 12 members joined in the past 60 seconds
+			/* when more than 12 members joined in the past 60 seconds
+			 * adjust this number depending on your guild-size. I think 12 should be enough
+			 */
+			if (fast_joined_member_count >= 12) {
 				if (!first_join) {
 					first_join = time(nullptr);
 				}
@@ -254,7 +259,7 @@ int main() {
 	});
 
 
-	/// Holds all incoming messages for some time to the spam detection
+	/// Holds all incoming messages for some time for the spam detection
 	dpp::cache<dpp::message> message_cache;
 
 
@@ -294,25 +299,24 @@ int main() {
 
 	/// helper function to delete all cached messages of a user in case of spam
 	function deleteUserMessages = [&message_cache, &bot](const dpp::snowflake userId) {
-		vector<dpp::message *> to_remove;
 		{
-			unordered_map<dpp::snowflake, dpp::message *> &mc = message_cache.get_container();
+			unordered_map<dpp::snowflake, dpp::message *> &msgCache = message_cache.get_container();
 			/* IMPORTANT: We must lock the container to iterate it */
 			shared_lock l(message_cache.get_mutex());
 
-			set<dpp::snowflake> channelIds; // store channel ids of messages which the user has sent
-			for (const auto &[msgId, msg]: mc) {
+			set<dpp::snowflake> channelIds; // store channel ids in which the user has written to
+			for (const auto &[msgId, msg]: msgCache) {
 				if (msg->author.id == userId) {
 					channelIds.insert(msg->channel_id);
 				}
 			}
 			uint32_t deletionCount = 0;
-			for (const auto &channelId : channelIds) { // loop through each channel id to bulk delete the user messages
+			for (const auto &channelId : channelIds) { // loop through each channel id to bulk delete the user messages whenever it's possible
 				vector<dpp::snowflake> messageIds;
-				for (const auto &[msgId, msg]: mc) {
+				// collect all (cached) messages from this channel sent by the user
+				for (const auto &[msgId, msg]: msgCache) {
 					if (msg->author.id == userId and msg->channel_id == channelId and find(messageIds.begin(), messageIds.end(), msgId) == messageIds.end()) {
-						messageIds.push_back(msgId); // store the user message
-						//to_remove.push_back(msg);
+						messageIds.push_back(msgId);
 					}
 					if (messageIds.size() >= 100) { // ensure max 100 messages to bulk delete
 						break;
@@ -324,7 +328,7 @@ int main() {
 				if (messageIds.size() > 1) {
 					bot.message_delete_bulk(messageIds, channelId, [&bot](const dpp::confirmation_callback_t &e) {
 						if (e.is_error()) {
-							bot.log(dpp::ll_error, "couldn't delete messages: " + e.http_info.body);
+							bot.log(dpp::ll_error, "couldn't bulk delete messages: " + e.http_info.body);
 						}
 					});
 				} else if (!messageIds.empty()) {
@@ -336,9 +340,6 @@ int main() {
 				}
 			}
 			bot.log(dpp::ll_debug, "added " + to_string(deletionCount) + " messages to deletion queue");
-		}
-		for (dpp::message *mp: to_remove) {
-			message_cache.remove(mp);
 		}
 	};
 
@@ -377,11 +378,11 @@ int main() {
 		{
 			shared_lock l(bypassConfig.get_mutex());
 			for (const string &entry: bypassConfig.get_container()) {
-				if (to_string(event.msg.author.id) == entry) {
+				if (event.msg.author.id == stol(entry)) {
 					return;
 				}
 				for (dpp::snowflake roleId: event.msg.member.roles) {
-					if (to_string(roleId) == entry) {
+					if (roleId == stol(entry)) {
 						return;
 					}
 				}
@@ -412,14 +413,14 @@ int main() {
 			dpp::embed embed; // create the embed log message
 			embed.set_color(0xefa226);
 			embed.set_timestamp(time(nullptr));
-			embed.set_description(":warning: Spam erkannt von " + event.msg.author.get_mention());
-			embed.add_field("Grund", reason, true);
+			embed.set_description(":warning: Spam detected by " + event.msg.author.get_mention());
+			embed.add_field("Reason", reason, true);
 			embed.add_field("Channel", fmt::format("<#{}>", event.msg.channel_id), true);
 			if (!event.msg.content.empty()) {
-				embed.add_field("Originale Nachricht", event.msg.content);
+				embed.add_field("Original message", event.msg.content);
 			}
 			embed.set_footer("ID " + to_string(event.msg.author.id), "");
-			embed.add_field("Mute länge", stringifySeconds(muteDuration));
+			embed.add_field("Timeout duration", stringifySeconds(muteDuration));
 
 			uint8_t i = 0; // counter to ensure only the first 3 attachments are mentioned
 			for (auto &attachment : event.msg.attachments) {
@@ -428,7 +429,7 @@ int main() {
 				}
 				i++;
 				embed.add_field(
-						fmt::format("Anhang {}", i),
+						fmt::format("Attachment {}", i),
 						fmt::format("{}\n({} bytes)\n{}",
 									dpp::utility::utf8substr(attachment.filename, 0, 40),
 									attachment.size,
@@ -515,11 +516,11 @@ int main() {
 							for (auto &s: domainBlacklist.get_container()) {
 								if (s.rfind('.', 0) == 0 and endsWith(domain, s)) { // if it's a top level domain
 									log->debug("blacklisted top-level-domain: " + domain);
-									mitigateSpam(fmt::format("Verbotene Top-Level-Domain: `{}`", domain), 86400 * 27, true);
+									mitigateSpam(fmt::format("Blacklisted top-level-domain: `{}`", domain), DAY * 27, true);
 									return;
 								} else if (s == domain) {
 									log->debug("blacklisted domain: " + domain);
-									mitigateSpam(fmt::format("Verbotene Domain: `{}`", domain), 86400 * 27, true);
+									mitigateSpam(fmt::format("Blacklisted domain: `{}`", domain), DAY * 27, true);
 									return;
 								}
 							}
@@ -531,7 +532,7 @@ int main() {
 				for (const string ext : config["forbidden-file-extensions"]) {
 					if (endsWith(URL, ext)) {
 						log->debug("forbidden extension: " + ext);
-						mitigateSpam(fmt::format("Verbotene Datei-Endung im Link: `{}`", ext), 86400 * 27, true);
+						mitigateSpam(fmt::format("Forbidden file extension in URL: `{}`", ext), DAY * 27, true);
 						return;
 					}
 				}
@@ -551,7 +552,7 @@ int main() {
 						if (message.find(" " + forbiddenWord) != string::npos or message.find(forbiddenWord + " ") != string::npos or
 						message.rfind(forbiddenWord, 0) == 0 or endsWith(message, forbiddenWord)) { // search the bad word in the message
 							log->debug("bad word: " + forbiddenWord);
-							mitigateSpam(fmt::format("Verwendung eines verbotenen Wortes: `{}`", forbiddenWord), 660, false);
+							mitigateSpam(fmt::format("Use of a bad word: `{}`", forbiddenWord), 660, false);
 							return;
 						}
 					}
@@ -562,14 +563,14 @@ int main() {
 		// to many urls in general
 		if (urlCount > 8) {
 			log->debug("too many urls");
-			mitigateSpam("Zu viele URLs", 86400 * 27, true);
+			mitigateSpam("Too many URLs", DAY * 27, true);
 			return;
 		}
 
 		// too many mentions
 		if (event.msg.mentions.size() > 8) {
 			log->debug("too many mentions in one message");
-			mitigateSpam("Massen erwähnung", 86400 * 14, false);
+			mitigateSpam("Mass ping", DAY * 14, false);
 			return;
 		}
 
@@ -577,7 +578,7 @@ int main() {
 		if (urlCount >= 1 and (event.msg.content.find("@everyone") != string::npos or
 							   event.msg.content.find("@here") != string::npos)) {
 			log->debug("url with @everyone-mention");
-			mitigateSpam("Nachricht enthält link und erwähnung", 86400 * (inviteCount >= 1 ? 27 : 14), true);
+			mitigateSpam("Message contains URL and @everyone", DAY * (inviteCount >= 1 ? 27 : 14), true);
 			return;
 		}
 
@@ -586,7 +587,7 @@ int main() {
 			for (const string ext : config["forbidden-file-extensions"]) {
 				if (endsWith(attachment.filename, ext)) {
 					log->debug("forbidden file extension: " + ext);
-					mitigateSpam(fmt::format("Verbotene Datei-Endung `{}`", ext), 86400 * 27, true);
+					mitigateSpam(fmt::format("Forbidden file extension: `{}`", ext), DAY * 27, true);
 					return;
 				}
 			}
@@ -615,14 +616,14 @@ int main() {
             /* IMPORTANT: We must lock the container to iterate it */
             shared_lock l(message_cache.get_mutex());
 
-			for (const auto &[id, msg]: mc) { // structured bindings
+			for (const auto &[id, msg]: mc) {
 
                 // current utc time
                 time_t t = time(nullptr);
                 auto local_field = *gmtime(&t);
                 auto utc = mktime(&local_field);
 
-                // check if the message in the cache is older than 5 minutes. If it is, remove it from the cache
+                // check if the message in the cache is older than 5 minutes. If so, remove it from the cache
                 if (difftime(utc, msg->sent) > 60 * 5) {
                     to_remove.push_back(msg);
                 } else {
@@ -709,26 +710,26 @@ int main() {
 			for (auto &s : same_messages_in_different_channels) {
 				channelMentions += fmt::format("<#{}>", s->channel_id);
 			}
-			mitigateSpam(fmt::format("Die gleiche Nachricht, in kürzester Zeit, in {} Channeln:||{}||",
-									 same_messages_in_different_channels.size(), channelMentions), 86400 * (urlCount >= 1 ? 27 : 14), true); // maximum mute duration if contains url
+			mitigateSpam(fmt::format("Crossposted message in {} Channels:||{}||",
+									 same_messages_in_different_channels.size(), channelMentions), DAY * (urlCount >= 1 ? 27 : 14), true); // maximum mute duration if contains url
 			return;
 		}
 
         // too many repeated messages in the same channel
 		if (same_messages_in_same_channel.size() >= 4) {
-			mitigateSpam("Die selbe Nachricht zu oft wiederholt", 86400 * (urlCount >= 1 ? 27 : 8), true); // maximum mute duration if contains url
+			mitigateSpam("Repeated message 4 times", DAY * (urlCount >= 1 ? 27 : 8), true); // maximum mute duration if contains url
 			return;
 		}
 
 		// same attachment or sticker sent somewhere
 		if (same_attachment.size() >= 4) {
-			mitigateSpam("Der selbe Anhang, in kürzester Zeit, zu oft", 86400 * 7, true);
+			mitigateSpam("Repeated attachment 4 times", DAY * 7, true);
 			return;
 		}
 
 		if (mention_count > 20) {
 			log->debug("too many mentions in multiple messages");
-			mitigateSpam("Massen erwähnung durch mehrere Nachrichten", 86400 * 27, true);
+			mitigateSpam("Too many mentions through multiple messages", DAY * 27, true);
 			return;
 		}
 
@@ -738,15 +739,15 @@ int main() {
 			for (auto &id : different_channel_ids) {
 				channelMentions += "<#" + to_string(id) + ">";
 			}
-			mitigateSpam(fmt::format("Nachrichten, in kürzester Zeit, in {} Channeln:||{}||",
-									 different_channel_ids.size(), channelMentions), 86400 * (urlCount >= 1 ? 27 : 1), true); // maximum mute duration if contains url
+			mitigateSpam(fmt::format("Sent messages in a shorter time in {} Channels:||{}||",
+									 different_channel_ids.size(), channelMentions), DAY * (urlCount >= 1 ? 27 : 1), true); // maximum mute duration if contains url
 			return;
 		}
 
 		// too many discord-invitations in one message
 		if (inviteCount > 4 or inviteCodes.size() > 2) {
 			log->debug("too many invites");
-			mitigateSpam("Zu viele Einladungslinks", 86400 * 27, true);
+			mitigateSpam("Too many invitations", DAY * 27, true);
 			return;
 		} else {
 			// check for invitation to another server
@@ -764,26 +765,26 @@ int main() {
 						dpp::embed embed; // create the embed log message
 						embed.set_color(0xff6600);
 						embed.set_timestamp(time(nullptr));
-						embed.set_description(":warning: Spam erkannt von " + msg.author.get_mention());
-						embed.add_field("Grund", "Einladung gepostet", true);
+						embed.set_description(":warning: Spam detected by " + msg.author.get_mention());
+						embed.add_field("Reason", "Einladung gepostet", true);
 						embed.add_field("Channel", fmt::format("<#{}>", msg.channel_id), true);
 						if (!msg.content.empty()) {
-							embed.add_field("Originale Nachricht", msg.content);
+							embed.add_field("Original Message", msg.content);
 						}
 						embed.set_footer("ID " + to_string(msg.author.id), "");
-						embed.add_field("Mute länge", stringifySeconds(muteDuration));
+						embed.add_field("Timeout duration", stringifySeconds(muteDuration));
 						if (!e.is_error()) { // invite details
 							dpp::invite invite = get<dpp::invite>(e.value);
 							string s;
 							if (invite.inviter_id) {
-								s = "Erstellt von: <@" + to_string(invite.inviter_id) + ">";
+								s = "Created by: <@" + to_string(invite.inviter_id) + ">";
 							}
 							if (invite.expires_at) {
-								s += "\nLäuft ab: " + dpp::utility::timestamp(invite.expires_at, dpp::utility::tf_short_datetime);
+								s += "\nExpires: " + dpp::utility::timestamp(invite.expires_at, dpp::utility::tf_short_datetime);
 							}
 							s += "\nGuild ID: " + to_string(invite.guild_id);
 							s += "\nCode: _" + invite.code + "_";
-							embed.add_field("Einladungs details", s);
+							embed.add_field("Invitation details", s);
 						}
 						dpp::message logMsg;
 						logMsg.channel_id = config["log-channel-id"];
@@ -799,12 +800,12 @@ int main() {
 						auto invite = get<dpp::invite>(e.value);
 						if (invite.guild_id != guild_id) { // if the invite is not from the same guild
 							bot.log(dpp::ll_debug, "invite detected: " + invite.code);
-							mitigateInviteSpam(86400 * 27);
+							mitigateInviteSpam(DAY * 27);
 						}
 					} else {
 						// unknown or invalid invite
 						bot.log(dpp::ll_debug, "unknown invite detected");
-						mitigateInviteSpam(86400 * 27);
+						mitigateInviteSpam(DAY * 27);
 					}
 				});
 			}
@@ -837,20 +838,20 @@ int main() {
 							if (regex_match(domain, domain_matches, domain_pattern) and domain_matches.size() == 2) {
 								domain = domain_matches[1];
 							} else {
-								event.reply(dpp::message("`" + domain + "` ist keine gültige Domain :x:").set_flags(dpp::m_ephemeral));
+								event.reply(dpp::message("`" + domain + "` is not a valid domain :x:").set_flags(dpp::m_ephemeral));
 								return;
 							}
 						}
 						transform(domain.begin(), domain.end(), domain.begin(), ::tolower); // to lowercase
 
 						if (domainBlacklist.contains(domain)) {
-							event.reply(dpp::message("`" + domain + "` ist schon auf der Blacklist").set_flags(dpp::m_ephemeral));
+							event.reply(dpp::message("`" + domain + "` is on the blacklist already").set_flags(dpp::m_ephemeral));
 						}
 
 						domainBlacklist.insert(domain);
 						domainBlacklist.save();
 
-						event.reply(dpp::message("`" + domain + "` wurde der Blacklist hinzugefügt :white_check_mark:").set_flags(dpp::m_ephemeral));
+						event.reply(dpp::message("`" + domain + "` was added to the blacklist :white_check_mark:").set_flags(dpp::m_ephemeral));
 					} else if (cmd_data.options[0].options[0].name == "remove") {
 						string domain = get<string>(cmd_data.options[0].options[0].options[0].value);
 
@@ -863,20 +864,20 @@ int main() {
 							if (regex_match(domain, domain_matches, domain_pattern) and domain_matches.size() == 2) {
 								domain = domain_matches[1];
 							} else {
-								event.reply(dpp::message("`" + domain + "` ist keine gültige Domain :x:").set_flags(dpp::m_ephemeral));
+								event.reply(dpp::message("`" + domain + "` is not a valid domain :x:").set_flags(dpp::m_ephemeral));
 								return;
 							}
 						}
 						transform(domain.begin(), domain.end(), domain.begin(), ::tolower); // to lowercase
 
 						if (!domainBlacklist.contains(domain)) {
-							event.reply(dpp::message("`" + domain + "` ist nicht auf der Blacklist").set_flags(dpp::m_ephemeral));
+							event.reply(dpp::message("`" + domain + "` is not blacklisted").set_flags(dpp::m_ephemeral));
 						}
 
 						domainBlacklist.remove(domain);
 						domainBlacklist.save();
 
-						event.reply(dpp::message("`" + domain + "` wurde von der Blacklist entfernt :white_check_mark:").set_flags(dpp::m_ephemeral));
+						event.reply(dpp::message("`" + domain + "` was removed from the blacklist :white_check_mark:").set_flags(dpp::m_ephemeral));
 					}
 				} else if (cmd_data.options[0].name == "forbiddenwords" and !cmd_data.options[0].options[0].options.empty()) {
 					if (cmd_data.options[0].options[0].name == "add") {
@@ -884,25 +885,25 @@ int main() {
 						transform(word.begin(), word.end(), word.begin(), ::tolower); // to lowercase
 
 						if (forbiddenWords.contains(word)) {
-							event.reply(dpp::message("`" + word + "` ist schon in der Schimpfwörter Bibliothek :white_check_mark:").set_flags(dpp::m_ephemeral));
+							event.reply(dpp::message("`" + word + "` is on the bad-words-list already").set_flags(dpp::m_ephemeral));
 						}
 
 						forbiddenWords.insert(word);
 						forbiddenWords.save();
 
-						event.reply(dpp::message("`" + word + "` wurde zur Schimpfwörter Bibliothek hinzugefügt :white_check_mark:").set_flags(dpp::m_ephemeral));
+						event.reply(dpp::message("`" + word + "` was added to the bad-words-list :white_check_mark:").set_flags(dpp::m_ephemeral));
 					} else if (cmd_data.options[0].options[0].name == "remove") {
 						string word = get<string>(cmd_data.options[0].options[0].options[0].value);
 						transform(word.begin(), word.end(), word.begin(), ::tolower); // to lowercase
 
 						if (!forbiddenWords.contains(word)) {
-							event.reply(dpp::message("`" + word + "` ist nicht in der Schimpfwörter Bibliothek :x:").set_flags(dpp::m_ephemeral));
+							event.reply(dpp::message("`" + word + "` is not in the bad-words-list").set_flags(dpp::m_ephemeral));
 						}
 
 						forbiddenWords.remove(word);
 						forbiddenWords.save();
 
-						event.reply(dpp::message("`" + word + "` wurde aus der Schimpfwörter Bibliothek entfernt :white_check_mark:").set_flags(dpp::m_ephemeral));
+						event.reply(dpp::message("`" + word + "` was removed from the bad-words-list :white_check_mark:").set_flags(dpp::m_ephemeral));
 					}
 				} else if (cmd_data.options[0].name == "bypass") {
 					if (cmd_data.options[0].options[0].name == "add" and !cmd_data.options[0].options[0].options.empty()) {
@@ -916,12 +917,12 @@ int main() {
 						}
 
 						if (bypassConfig.contains(to_string(id))) {
-							event.reply(dpp::message(":white_check_mark: " + mention + " ist schon ausgeschlossen vom Anti-Spam-System").set_flags(dpp::m_ephemeral));
+							event.reply(dpp::message(":white_check_mark: " + mention + " is already excluded from the anti-spam system").set_flags(dpp::m_ephemeral));
 						} else {
 							bypassConfig.insert(to_string(id));
 							bypassConfig.save();
 
-							event.reply(dpp::message(":white_check_mark: " + mention + " ist nun ausgeschlossen vom Anti-Spam-System").set_flags(dpp::m_ephemeral));
+							event.reply(dpp::message(":white_check_mark: " + mention + " was excluded from the anti-spam system").set_flags(dpp::m_ephemeral));
 						}
 					} else if (cmd_data.options[0].options[0].name == "remove" and !cmd_data.options[0].options[0].options.empty()) {
 						auto id = get<dpp::snowflake>(cmd_data.options[0].options[0].options[0].value);
@@ -934,12 +935,12 @@ int main() {
 						}
 
 						if (!bypassConfig.contains(to_string(id))) {
-							event.reply(dpp::message(":white_check_mark: " + mention + " ist nicht ausgeschlossen").set_flags(dpp::m_ephemeral));
+							event.reply(dpp::message(mention + " is not bypassed").set_flags(dpp::m_ephemeral));
 						} else {
 							bypassConfig.remove(to_string(id));
 							bypassConfig.save();
 
-							event.reply(dpp::message(":white_check_mark: " + mention + " ist nicht mehr vom Anti-Spam-System ausgeschlossen").set_flags(dpp::m_ephemeral));
+							event.reply(dpp::message(":white_check_mark: " + mention + " is no more excluded from the anti-spam system").set_flags(dpp::m_ephemeral));
 						}
 					} else if (cmd_data.options[0].options[0].name == "list") {
 						string userMentions;
@@ -958,7 +959,7 @@ int main() {
 						}
 
 						auto embed = dpp::embed()
-								.set_description("Vom Anti-Spam-System ausgeschlossene Rollen und User");
+								.set_description("Roles and users excluded from the anti-spam system");
 						if (!userMentions.empty()) {
 							embed.add_field("Bypassed users", userMentions);
 						}
@@ -966,7 +967,7 @@ int main() {
 							embed.add_field("Bypassed roles", roleMentions);
 						}
 						if (userMentions.empty() and roleMentions.empty()) {
-							event.reply(dpp::message("Niemand ist vom Anti-Spam-System ausgeschlossen").set_flags(dpp::m_ephemeral));
+							event.reply(dpp::message("There's no one bypassed").set_flags(dpp::m_ephemeral));
 						} else {
 							event.reply(dpp::message().set_flags(dpp::m_ephemeral).add_embed(embed));
 						}

@@ -11,7 +11,7 @@ namespace commands {
 	void createAll(dpp::cluster &bot, nlohmann::json &config) {
 		dpp::slashcommand m;
 		m.set_name("manage");
-		m.set_description("Bot Einstellungen");
+		m.set_description("Bot Settings");
 		m.disable_default_permissions();
 
 		// attach permissions to the slash command
@@ -23,48 +23,48 @@ namespace commands {
 			m.add_permission(perms);
 		}
 
-		m.add_option(dpp::command_option(dpp::co_sub_command_group, "domainblacklist", "Verwalte verbotene Domains")
+		m.add_option(dpp::command_option(dpp::co_sub_command_group, "domainblacklist", "Configure forbidden domains")
 							 .add_option(dpp::command_option(dpp::co_sub_command, "add",
-															 "Füge eine Domain der Blacklist hinzu")
+															 "Add a domain to the blacklist")
 												 .add_option(dpp::command_option(dpp::co_string, "domain",
-																				 "Die Domain, Top-Level-Domain oder Url",
+																				 "The domain, top-level-domain or the whole URL",
 																				 true))
 							 )
 							 .add_option(dpp::command_option(dpp::co_sub_command, "remove",
-															 "Entferne eine Domain aus der Blacklist")
+															 "Remove a domain from the blacklist")
 												 .add_option(dpp::command_option(dpp::co_string, "domain",
-																				 "Die Domain, Top-Level-Domain oder Url",
+																				 "The domain, top-level-domain or the whole URL",
 																				 true))
 							 )
 		);
-		m.add_option(dpp::command_option(dpp::co_sub_command_group, "forbiddenwords", "Verwalte verbotene Wörter")
+		m.add_option(dpp::command_option(dpp::co_sub_command_group, "forbiddenwords", "Configure bad words")
 							 .add_option(dpp::command_option(dpp::co_sub_command, "add",
-															 "Verbiete ein Wort")
+															 "Add a word to the list")
 												 .add_option(dpp::command_option(dpp::co_string, "word",
-																				 "Das Wort das verboten werden soll",
+																				 "The bad word",
 																				 true))
 							 )
 							 .add_option(dpp::command_option(dpp::co_sub_command, "remove",
-															 "Entferne ein Wort aus der Schimpfwörter Bibliothek")
+															 "Remove a word from the list")
 												 .add_option(dpp::command_option(dpp::co_string, "word",
-																				 "Das Wort das aus der Liste entfernt werden soll",
+																				 "The bad word",
 																				 true))
 							 )
 		);
 		m.add_option(dpp::command_option(dpp::co_sub_command_group, "bypass",
-										 "Verwalte Rollen und User die von den Anti-Spam-Maßnahmen ausgeschlossen sind")
+										 "Configure roles and users who are excluded from the anti-spam system")
 							 .add_option(dpp::command_option(dpp::co_sub_command, "list",
-															 "Liste all Rollen und User auf die vom Anti-Spam-System ausgeschlossen sind")
+															 "List all excluded roles and users")
 							 )
 							 .add_option(dpp::command_option(dpp::co_sub_command, "add",
-															 "Füge Rollen oder User hinzu welche von den Anti-Spam-Maßnahmen ausgeschlossen sein sollen")
+															 "Add a role or user to be excluded from the anti-spam system")
 												 .add_option(dpp::command_option(dpp::co_mentionable, "mentionable",
-																				 "Rolle oder User", true))
+																				 "A role or user", true))
 							 )
 							 .add_option(dpp::command_option(dpp::co_sub_command, "remove",
-															 "Entferne Rollen oder User welche von den Anti-Spam-Maßnahmen wieder betroffen sein sollen")
+															 "Remove a role or user from the bypass-list")
 												 .add_option(dpp::command_option(dpp::co_mentionable, "mentionable",
-																				 "Rolle oder User", true))
+																				 "A role or user", true))
 							 )
 		);
 
