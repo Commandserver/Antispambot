@@ -829,18 +829,13 @@ int main() {
 					if (cmd_data.options[0].options[0].name == "add") {
 						string domain = get<string>(cmd_data.options[0].options[0].options[0].value);
 
-						regex pattern(R"(^\S*?\.[A-z]+$)");
-						smatch matches;
-						if (!regex_match(domain, matches, pattern)) {
-							// check if url is blacklisted
-							regex domain_pattern(R"(https?:\/\/.*?([^.]+\.[A-z]+)(?:\/|#|\?|:|\Z|$).*$)", regex_constants::icase);
-							smatch domain_matches;
-							if (regex_match(domain, domain_matches, domain_pattern) and domain_matches.size() == 2) {
-								domain = domain_matches[1];
-							} else {
-								event.reply(dpp::message("`" + domain + "` ist keine gültige Domain :x:").set_flags(dpp::m_ephemeral));
-								return;
-							}
+						regex domain_pattern(R"(https?:\/\/.*?([^.]+\.[A-z]+)(?:\/|#|\?|:|\Z|$).*$)", regex_constants::icase);
+						smatch domain_matches;
+						if (regex_match(domain, domain_matches, domain_pattern) and domain_matches.size() == 2) {
+							domain = domain_matches[1];
+						} else if (!regex_match(domain, regex(R"(^\S*?\.[A-z]+$)"))) {
+							event.reply(dpp::message("`" + domain + "` ist keine gültige Domain :x:").set_flags(dpp::m_ephemeral));
+							return;
 						}
 						transform(domain.begin(), domain.end(), domain.begin(), ::tolower); // to lowercase
 
@@ -855,18 +850,13 @@ int main() {
 					} else if (cmd_data.options[0].options[0].name == "remove") {
 						string domain = get<string>(cmd_data.options[0].options[0].options[0].value);
 
-						regex pattern(R"(^\S*?\.[A-z]+$)");
-						smatch matches;
-						if (!regex_match(domain, matches, pattern)) {
-							// check if url is blacklisted
-							regex domain_pattern(R"(https?:\/\/.*?([^.]+\.[A-z]+)(?:\/|#|\?|:|\Z|$).*$)", regex_constants::icase);
-							smatch domain_matches;
-							if (regex_match(domain, domain_matches, domain_pattern) and domain_matches.size() == 2) {
-								domain = domain_matches[1];
-							} else {
-								event.reply(dpp::message("`" + domain + "` ist keine gültige Domain :x:").set_flags(dpp::m_ephemeral));
-								return;
-							}
+						regex domain_pattern(R"(https?:\/\/.*?([^.]+\.[A-z]+)(?:\/|#|\?|:|\Z|$).*$)", regex_constants::icase);
+						smatch domain_matches;
+						if (regex_match(domain, domain_matches, domain_pattern) and domain_matches.size() == 2) {
+							domain = domain_matches[1];
+						} else if (!regex_match(domain, regex(R"(^\S*?\.[A-z]+$)"))) {
+							event.reply(dpp::message("`" + domain + "` ist keine gültige Domain :x:").set_flags(dpp::m_ephemeral));
+							return;
 						}
 						transform(domain.begin(), domain.end(), domain.begin(), ::tolower); // to lowercase
 
