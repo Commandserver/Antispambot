@@ -38,24 +38,24 @@ string stringifySeconds(uint32_t seconds) {
 
 	string result;
 	if (days == 1) {
-		result += to_string(days) + " Tag ";
+		result += to_string(days) + " day ";
 	} else if (days > 1) {
-		result += to_string(days) + " Tage ";
+		result += to_string(days) + " days ";
 	}
 	if (hours == 1) {
-		result += to_string(hours) + " Stunde ";
+		result += to_string(hours) + " hour ";
 	} else if (hours > 1) {
-		result += to_string(hours) + " Stunden ";
+		result += to_string(hours) + " hours ";
 	}
 	if (minutes == 1) {
-		result += to_string(minutes) + " Minute ";
+		result += to_string(minutes) + " minute ";
 	} else if (minutes > 1) {
-		result += to_string(minutes) + " Minuten ";
+		result += to_string(minutes) + " minutes ";
 	}
 	if (seconds == 1) {
-		result += to_string(seconds) + " Sekunde ";
+		result += to_string(seconds) + " second ";
 	} else if (seconds > 1) {
-		result += to_string(seconds) + " Sekunden ";
+		result += to_string(seconds) + " seconds ";
 	}
 	return result.erase(result.find_last_not_of(' ') + 1); // remove the ending space
 }
