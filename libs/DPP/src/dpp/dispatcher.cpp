@@ -53,6 +53,34 @@ bool event_dispatch_t::is_cancelled() const
 	return stop_event;
 }
 
+context_menu_t::context_menu_t(class discord_client* client, const std::string& raw) : interaction_create_t(client, raw) {
+}
+
+message_context_menu_t::message_context_menu_t(class discord_client* client, const std::string& raw) : context_menu_t(client, raw) {
+}
+
+message message_context_menu_t::get_message() const {
+	return ctx_message;
+}
+
+message_context_menu_t& message_context_menu_t::set_message(const message& m) {
+	ctx_message = m;
+	return *this;
+}
+
+user_context_menu_t::user_context_menu_t(class discord_client* client, const std::string& raw) : context_menu_t(client, raw) {
+}
+
+user user_context_menu_t::get_user() const {
+	return ctx_user;
+}
+
+user_context_menu_t& user_context_menu_t::set_user(const user& u) {
+	ctx_user = u;
+	return *this;
+}
+
+
 void message_create_t::send(const std::string& m, command_completion_event_t callback) const
 {
 	this->send(dpp::message(m), callback);
@@ -121,6 +149,11 @@ void interaction_create_t::thinking(bool ephemeral, command_completion_event_t c
 		msg.set_flags(dpp::m_ephemeral);
 	}
 	this->reply(ir_deferred_channel_message_with_source, msg, callback);
+}
+
+void interaction_create_t::reply(command_completion_event_t callback) const
+{
+	this->reply(ir_deferred_update_message, message(), callback);
 }
 
 void interaction_create_t::dialog(const interaction_modal_response& mr, command_completion_event_t callback) const
@@ -216,6 +249,23 @@ const command_value& autocomplete_t::get_parameter(const std::string& name) cons
 	return dummy_b_value;
 }
 
+voice_receive_t::voice_receive_t(class discord_client* client, const std::string &raw, class discord_voice_client* vc, snowflake _user_id, uint8_t* pcm, size_t length) : event_dispatch_t(client, raw), voice_client(vc), user_id(_user_id) {
+	reassign(vc, _user_id, pcm, length);
+}
+
+void voice_receive_t::reassign(class discord_voice_client* vc, snowflake _user_id, uint8_t* pcm, size_t length) {
+	voice_client = vc;
+	user_id = _user_id;
+
+	audio_data.assign(pcm, length);
+
+	// for backwards compatibility; remove soon
+	audio = audio_data.data();
+	audio_size = audio_data.length();
+	
+}
+
+
 /* Standard default constructors that call the parent constructor, for events */
 event_ctor(guild_join_request_delete_t, event_dispatch_t);
 event_ctor(stage_instance_create_t, event_dispatch_t);
@@ -228,6 +278,7 @@ event_ctor(button_click_t, interaction_create_t);
 event_ctor(autocomplete_t, interaction_create_t);
 event_ctor(select_click_t, interaction_create_t);
 event_ctor(form_submit_t, interaction_create_t);
+event_ctor(slashcommand_t, interaction_create_t);
 event_ctor(guild_delete_t, event_dispatch_t);
 event_ctor(channel_delete_t, event_dispatch_t);
 event_ctor(channel_update_t, event_dispatch_t);

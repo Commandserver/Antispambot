@@ -56,6 +56,9 @@
 #include <thread>
 #include <deque>
 #include <mutex>
+#include <memory>
+#include <future>
+#include <functional>
 #include <chrono>
 
 using json = nlohmann::json;
@@ -91,22 +94,34 @@ struct DPP_EXPORT voice_out_packet {
  */
 class DPP_EXPORT discord_voice_client : public websocket_client
 {
-	/** Mutex for outbound packet stream */
+	/**
+	 * @brief Mutex for outbound packet stream
+	 */
 	std::mutex stream_mutex;
 
-	/** Mutex for message queue */
+	/**
+	 * @brief Mutex for message queue
+	 */
 	std::mutex queue_mutex;
 
-	/** Queue of outbound messages */
+	/**
+	 * @brief Queue of outbound messages
+	 */
 	std::deque<std::string> message_queue;
 
-	/** Thread this connection is executing on */
+	/**
+	 * @brief Thread this connection is executing on
+	 */
 	std::thread* runner;
 
-	/** Run shard loop under a thread */
+	/**
+	 * @brief Run shard loop under a thread
+	 */
 	void thread_run();
 
-	/** Last connect time of voice session */
+	/**
+	 * @brief Last connect time of voice session
+	 */
 	time_t connect_time;
 
 	/**
@@ -139,99 +154,209 @@ class DPP_EXPORT discord_voice_client : public websocket_client
 	 */
 	std::vector<voice_out_packet> outbuf;
 
-	/** Input  buffer. Each string is a received UDP
-	 * packet. These will usually be RTP.
+	/**
+	 * @brief Data type of RTP packet sequence number field.
 	 */
-	std::vector<std::string> inbuf;
+	using rtp_seq_t = uint16_t;
+	using rtp_timestamp_t = uint32_t;
 
-	/** If true, audio packet sending is paused
+	/**
+	 * @brief Keeps track of the voice payload to deliver to voice handlers.
+	 */
+	struct voice_payload {
+		/**
+		 * @brief The sequence number of the RTP packet that generated this
+		 * voice payload.
+		 */
+		rtp_seq_t seq;
+		/**
+		 * @brief The timestamp of the RTP packet that generated this voice
+		 * payload.
+		 *
+		 * The timestamp is used to detect the order around where sequence
+		 * number wraps around.
+		 */
+		rtp_timestamp_t timestamp;
+		/**
+		 * @brief The event payload that voice handlers receive.
+		 */
+		std::unique_ptr<voice_receive_t> vr;
+		
+		/**
+		 * @brief For priority_queue sorting.
+		 * @return true if "this" has lower priority that "other",
+		 *         i.e. appears later in the queue; false otherwise.
+		 */
+		bool operator<(const voice_payload& other) const;
+	};
+
+	struct voice_payload_parking_lot {
+		/**
+		 * @brief The range of RTP packet sequence number and timestamp in the lot.
+		 *
+		 * The minimum is used to drop packets that arrive too late. Packets
+		 * less than the minimum have been delivered to voice handlers and
+		 * there is no going back. Unfortunately we just have to drop them.
+		 *
+		 * The maximum is used, at flush time, to calculate the minimum for
+		 * the next batch. The maximum is also updated every time we receive an
+		 * RTP packet with a larger value.
+		 */
+		struct seq_range_t {
+			rtp_seq_t min_seq, max_seq;
+			rtp_timestamp_t min_timestamp, max_timestamp;
+		} range;
+		/**
+		 * @brief The queue of parked voice payloads.
+		 * 
+		 * We group payloads and deliver them to handlers periodically as the
+		 * handling of out-of-order RTP packets. Payloads in between flushes
+		 * are parked and sorted in this queue.
+		 */
+		std::priority_queue<voice_payload> parked_payloads;
+		/**
+		 * @brief The decoder ctls to be set on the decoder.
+		 */
+		std::vector<std::function<void(OpusDecoder&)>> pending_decoder_ctls;
+		/**
+		 * @brief libopus decoder
+		 *
+		 * Shared with the voice courier thread that does the decoding.
+		 * This is not protected by a mutex because only the courier thread
+		 * uses the decoder.
+		 */
+		std::shared_ptr<OpusDecoder> decoder;
+	};
+	/**
+	 * @brief Thread used to deliver incoming voice data to handlers.
+	 */
+	std::thread voice_courier;
+	/**
+	 * @brief Shared state between this voice client and the courier thread.
+	 */
+	struct courier_shared_state_t {
+		/**
+		 * @brief Protects all following members.
+		 */
+		std::mutex mtx;
+		/**
+		 * @brief Signaled when there is a new payload to deliver or terminating state has changed.
+		 */
+		std::condition_variable signal_iteration;
+		/**
+		 * @brief Voice buffers to be reported to handler, grouped by speaker.
+		 *
+		 * Buffers are parked here and flushed every 500ms.
+		 */
+		std::map<snowflake, voice_payload_parking_lot> parked_voice_payloads;
+		/**
+		 * @brief Used to signal termination.
+		 *
+		 * @note Pending payloads are delivered first before termination.
+		 */
+		bool terminating = false;
+	} voice_courier_shared_state;
+	/**
+	 * @brief The run loop of the voice courier thread.
+	 */
+	static void voice_courier_loop(discord_voice_client&, courier_shared_state_t&);
+
+	/**
+	 * @brief If true, audio packet sending is paused
 	 */
 	bool paused;
 
 #ifdef HAVE_VOICE
-	/** libopus encoder
+	/**
+	 * @brief libopus encoder
 	 */
 	OpusEncoder* encoder;
 
-	/** libopus decoder
-	 */
-	OpusDecoder* decoder;
-
-	/** libopus repacketizer
+	/**
+	 * @brief libopus repacketizer
 	 * (merges frames into one packet)
 	 */
 	OpusRepacketizer* repacketizer;
 #else
-	/** libopus encoder
+	/**
+	 * @brief libopus encoder
 	 */
 	void* encoder;
 
-	/** libopus decoder
-	 */
-	void* decoder;
-
-	/** libopus repacketizer
+	/**
+	 * @brief libopus repacketizer
 	 * (merges frames into one packet)
 	 */
 	void* repacketizer;
 #endif
 
-	/** File descriptor for UDP connection
+	/**
+	 * @brief File descriptor for UDP connection
 	 */
 	dpp::socket fd;
 
-	/** Socket address of voice server
+	/**
+	 * @brief Socket address of voice server
 	 */
 	sockaddr_in servaddr;
 
-	/** Secret key for encrypting voice.
+	/**
+	 * @brief Secret key for encrypting voice.
 	 * If it has been sent, this is non-null and points to a 
 	 * sequence of exactly 32 bytes.
 	 */
 	uint8_t* secret_key;
 
-	/** Sequence number of outbound audio. This is incremented
+	/**
+	 * @brief Sequence number of outbound audio. This is incremented
 	 * once per frame sent.
 	 */
 	uint16_t sequence;
 
-	/** Timestamp value used in outbound audio. Each packet
+	/**
+	 * @brief Timestamp value used in outbound audio. Each packet
 	 * has the timestamp value which is incremented to match
 	 * how many frames are sent.
 	 */
 	uint32_t timestamp;
 
 	/**
-	 * Last sent packet high-resolution timestamp
+	 * @brief Last sent packet high-resolution timestamp
 	 */
 	std::chrono::high_resolution_clock::time_point last_timestamp;
 
 	/**
-	 * Maps receiving ssrc to user id
+	 * @brief Maps receiving ssrc to user id
 	 */
-	std::unordered_map<uint32_t, snowflake> ssrcMap;
+	std::unordered_map<uint32_t, snowflake> ssrc_map;
 
-	/** This is set to true if we have started sending audio.
+	/**
+	 * @brief This is set to true if we have started sending audio.
 	 * When this moves from false to true, this causes the
 	 * client to send the 'talking' notification to the websocket.
 	 */
 	bool sending;
 
-	/** Number of track markers in the buffer. For example if there
+	/**
+	 * @brief Number of track markers in the buffer. For example if there
 	 * are two track markers in the buffer there are 3 tracks.
-	 * Special case:
+	 * 
+	 * **Special case:**
+	 * 
 	 * If the buffer is empty, there are zero tracks in the
 	 * buffer.
 	 */
 	uint32_t tracks;
 
-	/** Meta data associated with each track.
+	/**
+	 * @brief Meta data associated with each track.
 	 * Arbitrary string that the user can set via
-	 * dpp::discord_voice_client::AddMarker
+	 * dpp::discord_voice_client::add_marker
 	 */
 	std::vector<std::string> track_meta;
 
-	/** Encoding buffer for opus repacketizer and encode
+	/** 
+	 * @brief Encoding buffer for opus repacketizer and encode
 	 */
 	uint8_t encode_buffer[65536];
 
@@ -335,42 +460,77 @@ class DPP_EXPORT discord_voice_client : public websocket_client
 
 public:
 
-	/** Owning cluster */
+	/**
+	 * @brief Owning cluster
+	 */
 	class dpp::cluster* creator;
 
-	/* This needs to be static, we only initialise libsodium once per program start,
-	* so initialising it on first use in a voice connection is best.
-	*/
+	/**
+	 * @brief This needs to be static, we only initialise libsodium once per program start,
+	 * so initialising it on first use in a voice connection is best.
+	 */
 	static bool sodium_initialised;
 
-	/** True when the thread is shutting down */
+	/**
+	 * @brief True when the thread is shutting down
+	 */
 	bool terminating;
 
-	/** Decode received voice packets to PCM */
-	bool decode_voice_recv;
-
-	/** Heartbeat interval for sending heartbeat keepalive */
+	/**
+	 * @brief Heartbeat interval for sending heartbeat keepalive
+	 */
 	uint32_t heartbeat_interval;
 
-	/** Last heartbeat */
+	/**
+	 * @brief Last voice channel websocket heartbeat
+	 */
 	time_t last_heartbeat;
 
-	/** Thread ID */
+	/**
+	 * @brief Thread ID
+	 */
 	std::thread::native_handle_type thread_id;
 
-	/** Discord voice session token */
+	/**
+	 * @brief Discord voice session token
+	 */
 	std::string token;
 
-	/** Discord voice session id */
+	/**
+	 * @brief Discord voice session id
+	 */
 	std::string sessionid;
 
-	/** Server ID */
+	/**
+	 * @brief Server ID
+	 */
 	snowflake server_id;
 
-	/** Channel ID */
+	/**
+	 * @brief Channel ID
+	 */
 	snowflake channel_id;
 
-	/** Log a message to whatever log the user is using.
+	/**
+	 * @brief Sets the gain for the specified user.
+	 *
+	 * Similar to the User Volume slider, controls the listening volume per user.
+	 * Uses native Opus gain control, so clients don't have to perform extra
+	 * audio processing.
+	 *
+	 * The gain setting will affect the both individual and combined voice audio.
+	 *
+	 * The gain value can also be set even before the user connects to the voice
+	 * channel.
+	 *
+	 * @param user_id The ID of the user where the gain is to be controlled.
+	 * @param factor Nonnegative factor to scale the amplitude by, where 1.f reverts
+	 *               to the default volume.
+	 */
+	void set_user_gain(snowflake user_id, float factor);
+
+	/**
+	 * @brief Log a message to whatever log the user is using.
 	 * The logged message is passed up the chain to the on_log event in user code which can then do whatever
 	 * it wants to do with it.
 	 * @param severity The log level from dpp::loglevel
@@ -417,28 +577,34 @@ public:
 	 */
 	discord_voice_client(dpp::cluster* _cluster, snowflake _channel_id, snowflake _server_id, const std::string &_token, const std::string &_session_id, const std::string &_host);
 
-	/** Destructor */
+	/**
+	 * @brief Destroy the discord voice client object
+	 */
 	virtual ~discord_voice_client();
 
-	/** Handle JSON from the websocket.
+	/**
+	 * @brief Handle JSON from the websocket.
 	 * @param buffer The entire buffer content from the websocket client
 	 * @return bool True if a frame has been handled
 	 * @throw dpp::exception If there was an error processing the frame, or connection to UDP socket failed
 	 */
 	virtual bool handle_frame(const std::string &buffer);
 
-	/** Handle a websocket error.
+	/**
+	 * @brief Handle a websocket error.
 	 * @param errorcode The error returned from the websocket
 	 */
 	virtual void error(uint32_t errorcode);
 
-	/** Start and monitor I/O loop */
+	/**
+	 * @brief Start and monitor I/O loop
+	 */
 	void run();
 
 	/**
 	 * @brief Send raw audio to the voice channel.
 	 * 
-	 * You should send an audio packet of n11520 bytes.
+	 * You should send an audio packet of 11520 bytes.
 	 * Note that this function can be costly as it has to opus encode
 	 * the PCM audio on the fly, and also encrypt it with libsodium.
 	 * 
@@ -564,14 +730,16 @@ public:
 	 * @brief Pause sending of audio
 	 * 
 	 * @param pause True to pause, false to resume
+	 * @return reference to self
 	 */
-	void pause_audio(bool pause);
+	discord_voice_client& pause_audio(bool pause);
 
 	/**
 	 * @brief Immediately stop all audio.
 	 * Clears the packet queue.
+	 * @return reference to self
 	 */
-	void stop_audio();
+	discord_voice_client& stop_audio();
 
 	/**
 	 * @brief Returns true if we are playing audio
@@ -620,8 +788,9 @@ public:
 	 * function.
 	 * @param metadata Arbitrary information related to this
 	 * track
+	 * @return reference to self
 	 */
-	void insert_marker(const std::string& metadata = "");
+	discord_voice_client& insert_marker(const std::string& metadata = "");
 
 	/**
 	 * @brief Skip tp the next track marker,
@@ -634,8 +803,9 @@ public:
 	 * function.
 	 * @note It is possible to use this function
 	 * while the output stream is paused.
+	 * @return reference to self
 	 */
-	void skip_to_next_marker();
+	discord_voice_client& skip_to_next_marker();
 
 	/**
 	 * @brief Get the metadata string associated with each inserted marker.

@@ -48,6 +48,29 @@ using  json = nlohmann::json;
 
 namespace dpp {
 
+#ifdef _WIN32
+	#ifdef _DEBUG
+		extern "C" DPP_EXPORT void you_are_using_a_debug_build_of_dpp_on_a_release_project();
+	#else
+		extern "C" DPP_EXPORT void you_are_using_a_release_build_of_dpp_on_a_debug_project();
+	#endif
+#endif
+
+struct DPP_EXPORT version_checker {
+	version_checker() {
+		#ifdef _WIN32
+			#ifdef _DEBUG
+				you_are_using_a_debug_build_of_dpp_on_a_release_project();
+			#else
+				you_are_using_a_release_build_of_dpp_on_a_debug_project();
+			#endif
+		#endif
+	}
+};
+
+static version_checker dpp_vc;
+
+
 /**
  * @brief A list of shards
  */
@@ -331,7 +354,7 @@ private:
 	 * @brief A function to be called whenever the method is called, to check
 	 * some condition that is required for this event to trigger correctly.
 	 */
-	std::function<void()> warning;
+	std::function<void(const T&)> warning;
 
 protected:
 
@@ -341,7 +364,7 @@ protected:
 	 * 
 	 * @param warning_function A checking function to call
 	 */
-	void set_warning_callback(std::function<void()> warning_function) {
+	void set_warning_callback(std::function<void(const T&)> warning_function) {
 		warning = warning_function;
 	}
 
@@ -360,7 +383,7 @@ public:
 	 */
 	void call(const T& event) const {
 		if (warning) {
-			warning();
+			warning(event);
 		}
 		std::shared_lock l(lock);
 		std::for_each(dispatch_container.begin(), dispatch_container.end(), [&](auto &ev) {
@@ -418,9 +441,6 @@ public:
 	 * detach the listener from the event later if necessary.
 	 */
 	event_handle attach(std::function<void(const T&)> func) {
-		if (warning) {
-			warning();
-		}
 		std::unique_lock l(lock);
 		event_handle h = __next_handle++;
 		dispatch_container.emplace(h, func);
@@ -574,10 +594,11 @@ public:
 	 * @param maxclusters The total number of clusters that are active, which may be on separate processes or even separate machines.
 	 * @param compressed Whether or not to use compression for shards on this cluster. Saves a ton of bandwidth at the cost of some CPU
 	 * @param policy Set the user caching policy for the cluster, either lazy (only cache users/members when they message the bot) or aggressive (request whole member lists on seeing new guilds too)
-	 * @param request_threads The number of threads to allocate for making HTTP requests. This defaults to 8. You can increase this at runtime via the objects returned from get_rest() and get_raw_rest().
+	 * @param request_threads The number of threads to allocate for making HTTP requests to Discord. This defaults to 12. You can increase this at runtime via the object returned from get_rest().
+	 * @param request_threads_raw The number of threads to allocate for making HTTP requests to sites outside of Discord. This defaults to 1. You can increase this at runtime via the object returned from get_raw_rest().
 	 * @throw dpp::exception Thrown on windows, if WinSock fails to initialise, or on any other system if a dpp::request_queue fails to construct
 	 */
-	cluster(const std::string &token, uint32_t intents = i_default_intents, uint32_t shards = 0, uint32_t cluster_id = 0, uint32_t maxclusters = 1, bool compressed = true, cache_policy_t policy = {cp_aggressive, cp_aggressive, cp_aggressive}, uint32_t request_threads = 8);
+	cluster(const std::string &token, uint32_t intents = i_default_intents, uint32_t shards = 0, uint32_t cluster_id = 0, uint32_t maxclusters = 1, bool compressed = true, cache_policy_t policy = {cp_aggressive, cp_aggressive, cp_aggressive}, uint32_t request_threads = 12, uint32_t request_threads_raw = 1);
 
 	/**
 	 * @brief dpp::cluster is non-copyable
@@ -807,6 +828,15 @@ public:
 	 */
 	event_router_t<interaction_create_t> on_interaction_create;
 
+	/**
+	 * @brief Called when a slash command is issued.
+	 * Only ctxm_chat_input types of interaction are routed to this event.
+	 * For an example of this in action please see \ref slashcommands
+	 *
+	 * @note Use operator() to attach a lambda to this event, and the detach method to detach the listener using the returned ID.
+	 * The function signature for this event takes a single `const` reference of type interaction_create_t&, and returns void.
+	 */
+	event_router_t<slashcommand_t> on_slashcommand;
 	
 	/**
 	 * @brief Called when a button is clicked attached to a message.
@@ -838,6 +868,24 @@ public:
 	 * The function signature for this event takes a single `const` reference of type select_click_t&, and returns void.
 	 */
 	event_router_t<select_click_t> on_select_click;
+
+	/**
+	 * @brief Called when a user right-clicks or long-presses on a message,
+	 * where a slash command is bound to the ctxm_message command type.
+	 *
+	 * @note Use operator() to attach a lambda to this event, and the detach method to detach the listener using the returned ID.
+	 * The function signature for this event takes a single `const` reference of type select_click_t&, and returns void.
+	 */
+	event_router_t<message_context_menu_t> on_message_context_menu;
+
+	/**
+	 * @brief Called when a user right-clicks or long-presses on a user,
+	 * where a slash command is bound to the ctxm_user command type.
+	 *
+	 * @note Use operator() to attach a lambda to this event, and the detach method to detach the listener using the returned ID.
+	 * The function signature for this event takes a single `const` reference of type select_click_t&, and returns void.
+	 */
+	event_router_t<user_context_menu_t> on_user_context_menu;
 
 	/**
 	 * @brief Called when a modal dialog is submitted.
@@ -1389,6 +1437,15 @@ public:
 	 */
 	event_router_t<voice_receive_t> on_voice_receive;
 
+	/**
+	 * @brief Called when new audio data is received, combined and mixed for all speaking users.
+	 * 
+	 * @note Receiving audio for bots is not officially supported by discord.
+	 * 
+	 * @note Use operator() to attach a lambda to this event, and the detach method to detach the listener using the returned ID.
+	 * The function signature for this event takes a single `const` reference of type voice_receive_t&, and returns void.
+	 */
+	event_router_t<voice_receive_t> on_voice_receive_combined;
 	
 	/**
 	 * @brief Called when sending of audio passes over a track marker.
@@ -1494,11 +1551,58 @@ public:
 	void interaction_response_edit(const std::string &token, const message &m, command_completion_event_t callback = utility::log_error());
 
 	/**
+	 * @brief Create a followup message to a slash command
+	 * 
+	 * @param token Token for the interaction webhook
+	 * @param m followup message to create
+	 * @param callback Function to call when the API call completes.
+	 * On success the callback will contain a dpp::confirmation object in confirmation_callback_t::value. On failure, the value is undefined and confirmation_callback_t::is_error() method will return true. You can obtain full error details with confirmation_callback_t::get_error().
+	 */
+	void interaction_followup_create(const std::string &token, const message &m, command_completion_event_t callback);
+
+	/**
+	 * @brief Edit original followup message to a slash command
+	 * This is an alias for cluster::interaction_response_edit
+	 * @see cluster::interaction_response_edit
+	 * 
+	 * @param token Token for the interaction webhook
+	 * @param m message to edit, the ID should be set
+	 * @param callback Function to call when the API call completes.
+	 * On success the callback will contain a dpp::confirmation object in confirmation_callback_t::value. On failure, the value is undefined and confirmation_callback_t::is_error() method will return true. You can obtain full error details with confirmation_callback_t::get_error().
+	 */
+	void interaction_followup_edit_original(const std::string &token, const message &m, command_completion_event_t callback = utility::log_error());
+
+	/**
+	 * @brief 
+	 * 
+	 * @param token Token for the interaction webhook
+	 * @param callback Function to call when the API call completes.
+	 * On success the callback will contain a dpp::confirmation object in confirmation_callback_t::value. On failure, the value is undefined and confirmation_callback_t::is_error() method will return true. You can obtain full error details with confirmation_callback_t::get_error().
+	 */
+	void interaction_followup_delete(const std::string &token, command_completion_event_t callback = utility::log_error());
+
+	/**
+	 * @brief Edit followup message to a slash command
+	 * The message ID in the message you pass should be correctly set to that of a followup message you previously sent
+	 * @param token Token for the interaction webhook
+	 * @param m message to edit, the ID should be set
+	 * @param callback Function to call when the API call completes.
+	 * On success the callback will contain a dpp::confirmation object in confirmation_callback_t::value. On failure, the value is undefined and confirmation_callback_t::is_error() method will return true. You can obtain full error details with confirmation_callback_t::get_error().
+	 */
+	void interaction_followup_edit(const std::string &token, const message &m, command_completion_event_t callback = utility::log_error());
+
+	/**
+	 * @brief Get the followup message to a slash command
+	 * @param token Token for the interaction webhook
+	 * @param message_id message to retrieve
+	 * @param callback Function to call when the API call completes.
+	 * On success the callback will contain a dpp::message object in confirmation_callback_t::value. On failure, the value is undefined and confirmation_callback_t::is_error() method will return true. You can obtain full error details with confirmation_callback_t::get_error().
+	 */
+	void interaction_followup_get(const std::string &token, snowflake message_id, command_completion_event_t callback);
+
+	/**
 	 * @brief Create a global slash command (a bot can have a maximum of 100 of these).
 	 * 
-	 * @note Global commands are cached by discord server-side and can take up to an hour to be visible. For testing,
-	 * you should use cluster::guild_command_create instead.
-	 *
 	 * @see https://discord.com/developers/docs/interactions/application-commands#create-global-application-command
 	 * @param s Slash command to create
 	 * @param callback Function to call when the API call completes.
@@ -1556,9 +1660,6 @@ public:
 	 * @brief Create/overwrite global slash commands.
 	 * Any existing global slash commands will be deleted and replaced with these.
 	 *
-	 * @note Global commands are cached by discord server-side and can take up to an hour to be visible. For testing,
-	 * you should use cluster::guild_bulk_command_create instead.
-	 * 
 	 * @see https://discord.com/developers/docs/interactions/application-commands#bulk-overwrite-global-application-commands
 	 * @param commands Vector of slash commands to create/update.
 	 * overwriting existing commands that are registered globally for this application. Updates will be available in all guilds after 1 hour.
@@ -1572,8 +1673,6 @@ public:
 	 * @brief Edit a global slash command (a bot can have a maximum of 100 of these)
 	 *
 	 * @see https://discord.com/developers/docs/interactions/application-commands#edit-global-application-command
-	 * @note Global commands are cached by discord server-side and can take up to an hour to be visible. For testing,
-	 * you should use cluster::guild_bulk_command_create instead.
 	 * @param s Slash command to change
 	 * @param callback Function to call when the API call completes.
 	 * On success the callback will contain a dpp::confirmation object in confirmation_callback_t::value. On failure, the value is undefined and confirmation_callback_t::is_error() method will return true. You can obtain full error details with confirmation_callback_t::get_error().
@@ -3540,7 +3639,6 @@ public:
 	 * @param event Event to attach to, e.g. cluster::on_message_create
 	 */
 	collector(class cluster* cl, uint64_t duration, event_router_t<T> & event) : owner(cl), triggered(false) {
-		using namespace std::placeholders;
 		std::function<void(const T&)> f = [this](const T& event) {
 			const C* v = filter(event);
 			if (v) {
