@@ -236,13 +236,12 @@ time_t ts_not_null(const json* j, const char* keyname)
 	 * can't handle. We strip these out.
 	 */
 	time_t retval = 0;
-	if (j->find(keyname) != j->end() && !(*j)[keyname].is_null() && (*j)[keyname].is_string()) {
+	if (j->contains(keyname) && !(*j)[keyname].is_null() && (*j)[keyname].is_string()) {
 		tm timestamp = {};
 		std::string timedate = (*j)[keyname].get<std::string>();
 		if (timedate.find('+') != std::string::npos) {
-			std::string tzpart = timedate.substr(timedate.find('+'), timedate.length());
 			if (timedate.find('.') != std::string::npos) {
-				timedate = timedate.substr(0, timedate.find('.')); // + "Z" + tzpart;
+				timedate = timedate.substr(0, timedate.find('.'));
 			}
 			crossplatform_strptime(timedate.substr(0, 19).c_str(), "%Y-%m-%dT%T", &timestamp);
 			timestamp.tm_isdst = 0;
@@ -261,14 +260,13 @@ void set_ts_not_null(const json* j, const char* keyname, time_t &v)
 	 * Note that discord timestamps contain a decimal seconds part, which time_t and struct tm
 	 * can't handle. We strip these out.
 	 */
-	time_t retval = 0;
-	if (j->find(keyname) != j->end() && !(*j)[keyname].is_null() && (*j)[keyname].is_string()) {
+	if (j->contains(keyname) && !(*j)[keyname].is_null() && (*j)[keyname].is_string()) {
+		time_t retval = 0;
 		tm timestamp = {};
 		std::string timedate = (*j)[keyname].get<std::string>();
 		if (timedate.find('+') != std::string::npos) {
-			std::string tzpart = timedate.substr(timedate.find('+'), timedate.length());
 			if (timedate.find('.') != std::string::npos) {
-				timedate = timedate.substr(0, timedate.find('.')); // + "Z" + tzpart;
+				timedate = timedate.substr(0, timedate.find('.'));
 			}
 			crossplatform_strptime(timedate.substr(0, 19).c_str(), "%Y-%m-%dT%T", &timestamp);
 			timestamp.tm_isdst = 0;
@@ -324,6 +322,7 @@ const std::map<std::string, dpp::events::event*> eventmap = {
 	{ "INTERACTION_CREATE", new dpp::events::interaction_create() },
 	{ "USER_UPDATE", new dpp::events::user_update() },
 	{ "GUILD_JOIN_REQUEST_DELETE", new dpp::events::guild_join_request_delete() },
+	{ "GUILD_JOIN_REQUEST_UPDATE", nullptr },
 	{ "STAGE_INSTANCE_CREATE", new dpp::events::stage_instance_create() },
 	{ "STAGE_INSTANCE_UPDATE", new dpp::events::stage_instance_update() },
 	{ "STAGE_INSTANCE_DELETE", new dpp::events::stage_instance_delete() },

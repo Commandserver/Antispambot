@@ -129,9 +129,11 @@ enum guild_flags : uint32_t {
  */
 enum guild_flags_extra : uint8_t {
 	/** Guild has premium progress bar enabled */
-	g_premium_progress_bar_enabled =		0b00000001,
+	g_premium_progress_bar_enabled =	0b00000001,
 	/** Guild can have an animated banner (doesn't mean it actually has one though) */
 	g_animated_banner =			0b00000010,
+	/** Guild has auto moderation */
+	g_auto_moderation =			0b00000100,
 };
 
 /**
@@ -531,7 +533,7 @@ public:
 	 * @param with_id True if an ID is to be included in the JSON
 	 * @return JSON string
 	 */
-	virtual std::string build_json(bool with_id = false) const;
+	std::string build_json(bool with_id = false) const;
 
 	/**
 	 * @brief Get the base permissions for a member on this guild,
@@ -695,6 +697,12 @@ public:
 	bool has_animated_banner() const;
 
 	/**
+	 * @brief Guild has auto moderation features
+	 * @return bool has auto moderation features
+	 */
+	bool has_auto_moderation() const;
+
+	/**
 	 * @brief Guild has access to set an animated guild icon
 	 * @return bool can have animated icon
 	 */
@@ -829,7 +837,7 @@ public:
 	 * @param with_id Add ID to output
 	 * @return std::string guild widget stringified json
 	 */
-	virtual std::string build_json(bool with_id = false) const;
+	std::string build_json(bool with_id = false) const;
 };
 
 /**

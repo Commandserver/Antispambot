@@ -54,6 +54,7 @@ const std::map<std::string, std::variant<dpp::guild_flags, dpp::guild_flags_extr
 	{"THREE_DAY_THREAD_ARCHIVE", dpp::g_three_day_thread_archive },
 	{"TICKETED_EVENTS_ENABLED", dpp::g_ticketed_events },
 	{"CHANNEL_BANNER", dpp::g_channel_banners },
+	{"AUTO_MODERATION", dpp::g_auto_moderation },
 };
 
 namespace dpp {
@@ -199,12 +200,8 @@ std::string guild_member::build_json(bool with_id) const {
 			j["roles"].push_back(std::to_string(role));
 		}
 	}
-	if (is_muted()) {
-		j["mute"] = true;
-	}
-	if (is_deaf()) {
-		j["deaf"] = true;
-	}
+	j["mute"] = is_muted();
+	j["deaf"] = is_deaf();
 	return j.dump();
 }
 
@@ -287,6 +284,10 @@ bool guild::is_featureable() const {
 
 bool guild::has_animated_banner() const {
 	return this->flags_extra & g_animated_banner;
+}
+
+bool guild::has_auto_moderation() const {
+	return this->flags_extra & g_auto_moderation;
 }
 
 bool guild::has_animated_icon() const {

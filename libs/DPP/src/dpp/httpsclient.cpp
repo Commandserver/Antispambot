@@ -74,7 +74,11 @@ void https_client::connect()
 
 multipart_content https_client::build_multipart(const std::string &json, const std::vector<std::string>& filenames, const std::vector<std::string>& contents) {
 	if (filenames.empty() && contents.empty()) {
-		return { json, "application/json" };
+		if (!json.empty()) {
+			return { json, "application/json" };
+		} else {
+			return {json, ""};
+		}
 	} else {
 		const std::string two_cr("\r\n\r\n");
 		const std::string boundary(fmt::format("-------------{:8x}{:16x}", time(nullptr) + time(nullptr), time(nullptr) * time(nullptr)));
@@ -168,7 +172,6 @@ bool https_client::handle_buffer(std::string &buffer)
 							if (response_headers.find("transfer-encoding") != response_headers.end()) {
 								if (response_headers["transfer-encoding"].find("chunked") != std::string::npos) {
 									chunked = true;
-									waiting_end_marker = false;
 									chunk_size = 0;
 									chunk_receive = 0;
 									state = HTTPS_CHUNK_LEN;
