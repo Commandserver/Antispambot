@@ -157,7 +157,9 @@ http_request_completion_t http_request::run(cluster* owner) {
 	} else {
 
 		multipart = https_client::build_multipart(postdata, file_name, file_content);
-		headers.emplace("Content-Type", multipart.mimetype);
+		if (!multipart.mimetype.empty()) {
+			headers.emplace("Content-Type", multipart.mimetype);
+		}
 	}
 	http_connect_info hci = https_client::get_host_info(_host);
 	try {
@@ -183,17 +185,18 @@ http_request_completion_t http_request::run(cluster* owner) {
 request_queue::request_queue(class cluster* owner, uint32_t request_threads) : creator(owner), terminating(false), globally_ratelimited(false), globally_limited_for(0), in_thread_pool_size(request_threads)
 {
 	for (uint32_t in_alloc = 0; in_alloc < in_thread_pool_size; ++in_alloc) {
-		requests_in.push_back(new in_thread(owner, this));
+		requests_in.push_back(new in_thread(owner, this, in_alloc));
 	}
 	out_thread = new std::thread(&request_queue::out_loop, this);
 }
 
-void request_queue::add_request_threads(uint32_t request_threads)
+request_queue& request_queue::add_request_threads(uint32_t request_threads)
 {
 	for (uint32_t in_alloc_ex = 0; in_alloc_ex < request_threads; ++in_alloc_ex) {
-		requests_in.push_back(new in_thread(creator, this));
+		requests_in.push_back(new in_thread(creator, this, in_alloc_ex + in_thread_pool_size));
 	}
 	in_thread_pool_size += request_threads;
+	return *this;
 }
 
 uint32_t request_queue::get_request_thread_count() const
@@ -201,9 +204,9 @@ uint32_t request_queue::get_request_thread_count() const
 	return in_thread_pool_size;
 }
 
-in_thread::in_thread(class cluster* owner, class request_queue* req_q) : terminating(false), requests(req_q), creator(owner)
+in_thread::in_thread(class cluster* owner, class request_queue* req_q, uint32_t index) : terminating(false), requests(req_q), creator(owner)
 {
-	this->in_thr = new std::thread(&in_thread::in_loop, this);
+	this->in_thr = new std::thread(&in_thread::in_loop, this, index);
 }
 
 in_thread::~in_thread()
@@ -225,8 +228,9 @@ request_queue::~request_queue()
 	}
 }
 
-void in_thread::in_loop()
+void in_thread::in_loop(uint32_t index)
 {
+	utility::set_thread_name(fmt::format("http_req/{}", index));
 	while (!terminating) {
 		std::mutex mtx;
 		std::unique_lock<std::mutex> lock{ mtx };			
@@ -331,6 +335,7 @@ void in_thread::in_loop()
 
 void request_queue::out_loop()
 {
+	utility::set_thread_name("req_callback");
 	while (!terminating) {
 
 		std::mutex mtx;
@@ -391,9 +396,10 @@ inline uint32_t hash(const char *s)
 }
 
 /* Post a http_request into a request queue */
-void request_queue::post_request(http_request* req)
+request_queue& request_queue::post_request(http_request* req)
 {
 	requests_in[hash(req->endpoint.c_str()) % in_thread_pool_size]->post_request(req);
+	return *this;
 }
 
 bool request_queue::is_globally_ratelimited() const

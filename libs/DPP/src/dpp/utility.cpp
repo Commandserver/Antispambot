@@ -44,6 +44,10 @@
 	#define pclose _pclose
 #endif
 
+#ifdef HAVE_PRCTL
+	#include <sys/prctl.h>
+#endif
+
 using namespace std::literals;
 
 namespace dpp {
@@ -215,6 +219,7 @@ namespace dpp {
 
 		void exec(const std::string& cmd, std::vector<std::string> parameters, cmd_result_t callback) {
 			auto t = std::thread([cmd, parameters, callback]() {
+				utility::set_thread_name("async_exec");
 				std::array<char, 128> buffer;
 				std::vector<std::string> my_parameters = parameters;
 				std::string result;
@@ -475,6 +480,16 @@ namespace dpp {
 
 		std::string version() {
 			return DPP_VERSION_TEXT;
+		}
+
+		void set_thread_name(const std::string& name) {
+			#ifdef HAVE_PRCTL
+				prctl(PR_SET_NAME, reinterpret_cast<unsigned long>(name.substr(0, 15).c_str()), NULL, NULL, NULL);
+			#else
+				#if HAVE_PTHREAD_SETNAME_NP
+					pthread_setname_np(name.substr(0, 15).c_str());
+				#endif
+			#endif
 		}
 	};
 

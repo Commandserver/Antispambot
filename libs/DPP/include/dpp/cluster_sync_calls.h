@@ -30,13 +30,10 @@
  * @brief Create/overwrite global slash commands.
  * Any existing global slash commands will be deleted and replaced with these.
  *
- * @note Global commands are cached by discord server-side and can take up to an hour to be visible. For testing,
- * you should use cluster::guild_bulk_command_create instead.
- * 
  * @see dpp::cluster::global_bulk_command_create
  * @see https://discord.com/developers/docs/interactions/application-commands#bulk-overwrite-global-application-commands
  * @param commands Vector of slash commands to create/update.
- * overwriting existing commands that are registered globally for this application. Updates will be available in all guilds after 1 hour.
+ * overwriting existing commands that are registered globally for this application.
  * Commands that do not already exist will count toward daily application command create limits.
  * @return slashcommand_map returned object on completion
  * \memberof dpp::cluster
@@ -49,9 +46,6 @@ slashcommand_map global_bulk_command_create_sync(const std::vector<slashcommand>
 /**
  * @brief Create a global slash command (a bot can have a maximum of 100 of these).
  * 
- * @note Global commands are cached by discord server-side and can take up to an hour to be visible. For testing,
- * you should use cluster::guild_command_create instead.
- *
  * @see dpp::cluster::global_command_create
  * @see https://discord.com/developers/docs/interactions/application-commands#create-global-application-command
  * @param s Slash command to create
@@ -96,8 +90,6 @@ confirmation global_command_delete_sync(snowflake id);
  *
  * @see dpp::cluster::global_command_edit
  * @see https://discord.com/developers/docs/interactions/application-commands#edit-global-application-command
- * @note Global commands are cached by discord server-side and can take up to an hour to be visible. For testing,
- * you should use cluster::guild_bulk_command_create instead.
  * @param s Slash command to change
  * @return confirmation returned object on completion
  * \memberof dpp::cluster
@@ -307,6 +299,72 @@ confirmation interaction_response_create_sync(snowflake interaction_id, const st
  * Avoid direct use of this function inside an event handler.
  */
 confirmation interaction_response_edit_sync(const std::string &token, const message &m);
+
+/**
+ * @brief Create a followup message to a slash command
+ * 
+ * @param token Token for the interaction webhook
+ * @param m followup message to create
+ * @return confirmation returned object on completion
+ * \memberof dpp::cluster
+ * @throw dpp::rest_exception upon failure to execute REST function
+ * @warning This function is a blocking (synchronous) call and should only be used from within a separate thread.
+ * Avoid direct use of this function inside an event handler.
+ */
+confirmation interaction_followup_create_sync(const std::string &token, const message &m);
+
+/**
+ * @brief Edit original followup message to a slash command
+ * This is an alias for cluster::interaction_response_edit
+ * @see dpp::cluster::interaction_followup_edit_original
+ * @see cluster::interaction_response_edit
+ * 
+ * @param token Token for the interaction webhook
+ * @param m message to edit, the ID should be set
+ * @return confirmation returned object on completion
+ * \memberof dpp::cluster
+ * @throw dpp::rest_exception upon failure to execute REST function
+ * @warning This function is a blocking (synchronous) call and should only be used from within a separate thread.
+ * Avoid direct use of this function inside an event handler.
+ */
+confirmation interaction_followup_edit_original_sync(const std::string &token, const message &m);
+
+/**
+ * @brief 
+ * 
+ * @param token Token for the interaction webhook
+ * @return confirmation returned object on completion
+ * \memberof dpp::cluster
+ * @throw dpp::rest_exception upon failure to execute REST function
+ * @warning This function is a blocking (synchronous) call and should only be used from within a separate thread.
+ * Avoid direct use of this function inside an event handler.
+ */
+confirmation interaction_followup_delete_sync(const std::string &token);
+
+/**
+ * @brief Edit followup message to a slash command
+ * The message ID in the message you pass should be correctly set to that of a followup message you previously sent
+ * @param token Token for the interaction webhook
+ * @param m message to edit, the ID should be set
+ * @return confirmation returned object on completion
+ * \memberof dpp::cluster
+ * @throw dpp::rest_exception upon failure to execute REST function
+ * @warning This function is a blocking (synchronous) call and should only be used from within a separate thread.
+ * Avoid direct use of this function inside an event handler.
+ */
+confirmation interaction_followup_edit_sync(const std::string &token, const message &m);
+
+/**
+ * @brief Get the followup message to a slash command
+ * @param token Token for the interaction webhook
+ * @param message_id message to retrieve
+ * @return message returned object on completion
+ * \memberof dpp::cluster
+ * @throw dpp::rest_exception upon failure to execute REST function
+ * @warning This function is a blocking (synchronous) call and should only be used from within a separate thread.
+ * Avoid direct use of this function inside an event handler.
+ */
+message interaction_followup_get_sync(const std::string &token, snowflake message_id);
 
 /**
  * @brief Create a channel

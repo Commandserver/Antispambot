@@ -206,6 +206,17 @@ Markdown lol \\|\\|spoiler\\|\\| \\~\\~strikethrough\\~\\~ \\`small \\*code\\* b
 		/* This ensures we test both protocols, as voice is json and shard is etf */
 		bot.set_websocket_protocol(dpp::ws_etf);
 
+		bot.on_form_submit([&](const dpp::form_submit_t & event) {
+		});
+
+		/* This is near impossible to test without a 'clean room' voice channel.
+		 * We attach this event just so that the decoder events are fired while we
+		 * are sending audio later, this way if the audio receive code is plain unstable
+		 * the test suite will crash and fail.
+		 */
+		bot.on_voice_receive_combined([&](auto& event) {
+		});
+
 		bot.on_ready([&bot](const dpp::ready_t & event) {
 
 			set_test("CONNECTION", true);
@@ -217,7 +228,8 @@ Markdown lol \\|\\|spoiler\\|\\| \\~\\~strikethrough\\~\\~ \\`small \\*code\\* b
 			bot.guild_command_create(dpp::slashcommand().set_name("testcommand")
 				.set_description("Test command for DPP unit test")
 				.add_option(dpp::command_option(dpp::co_attachment, "file", "a file"))
-				.set_application_id(bot.me.id),
+				.set_application_id(bot.me.id)
+				.add_localization("fr", "zut", "Ou est la salor dans Discord?"),
 				TEST_GUILD_ID, [&bot](const dpp::confirmation_callback_t &callback) {
 					if (!callback.is_error()) {
 						set_test("APPCOMMAND", true);

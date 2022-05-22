@@ -43,6 +43,7 @@
 #include <variant>
 #include <exception>
 #include <algorithm>
+#include <string>
 
 namespace dpp {
 
@@ -296,6 +297,16 @@ struct DPP_EXPORT interaction_create_t : public event_dispatch_t {
 	 */
 	interaction_create_t(class discord_client* client, const std::string& raw);
 
+
+	/**
+	 * @brief Acknowledge interaction without displaying a message to the user,
+	 * for use with button and select menu components.
+	 * 
+	 * @param callback User function to execute when the api call completes.
+	 * On success the callback will contain a dpp::confirmation object in confirmation_callback_t::value. On failure, the value is undefined and confirmation_callback_t::is_error() method will return true. You can obtain full error details with confirmation_callback_t::get_error().
+	 */
+	void reply(command_completion_event_t callback = utility::log_error()) const;
+
 	/**
 	 * @brief Send a reply for this interaction
 	 * 
@@ -417,6 +428,15 @@ struct DPP_EXPORT interaction_create_t : public event_dispatch_t {
 	virtual ~interaction_create_t() = default;
 };
 
+struct DPP_EXPORT slashcommand_t : public interaction_create_t {
+public:
+	/** Constructor
+	 * @param client The shard the event originated on
+	 * @param raw Raw event text as JSON
+	 */
+	slashcommand_t(class discord_client* client, const std::string& raw);
+};
+
 /**
  * @brief Click on button
  */
@@ -504,6 +524,83 @@ struct DPP_EXPORT autocomplete_t : public interaction_create_t {
 	std::vector<dpp::command_option> options;
 };
 
+/**
+ * @brief Base class for context menu interactions, e.g. right click on
+ * user or message.
+ */
+struct DPP_EXPORT context_menu_t : public interaction_create_t {
+public:
+	/** Constructor
+	 * @param client The shard the event originated on
+	 * @param raw Raw event text as JSON
+	 */
+	context_menu_t(class discord_client* client, const std::string& raw);
+};
+
+/**
+ * @brief Event parameter for context menu interactions for messages
+ */
+struct DPP_EXPORT message_context_menu_t : public context_menu_t {
+
+	/**
+	 * @brief Related message
+	 */
+	message ctx_message;
+public:
+	/** Constructor
+	 * @param client The shard the event originated on
+	 * @param raw Raw event text as JSON
+	 */
+	message_context_menu_t(class discord_client* client, const std::string& raw);
+
+	/**
+	 * @brief Get the message which was right-clicked on
+	 * 
+	 * @return message right-clicked on
+	 */
+	message get_message() const;
+
+	/**
+	 * @brief Set the message object for this event
+	 * 
+	 * @param m message to set
+	 * @return message_context_menu_t& reference to self for fluent chaining
+	 */
+	message_context_menu_t& set_message(const message& m);
+};
+
+/**
+ * @brief Event parameter for context menu interactions for users
+ */
+struct DPP_EXPORT user_context_menu_t : public context_menu_t {
+
+	/**
+	 * @brief Related user
+	 */
+	user ctx_user;
+public:
+	/** Constructor
+	 * @param client The shard the event originated on
+	 * @param raw Raw event text as JSON
+	 */
+	user_context_menu_t(class discord_client* client, const std::string& raw);
+
+	/**
+	 * @brief Get the user which was right-clicked on
+	 * 
+	 * @return user right clicked on
+	 */
+	user get_user() const;
+
+	/**
+	 * @brief Set the user object for this event
+	 * 
+	 * @param u user to set
+	 * @return user_context_menu_t& reference to self for fluent chaining
+	 */
+	user_context_menu_t& set_user(const user& u);
+
+};
 
 /**
  * @brief Click on select
@@ -1169,7 +1266,7 @@ struct DPP_EXPORT message_update_t : public event_dispatch_t {
 	/**
 	 * @brief message being updated
 	 */
-	message* updated;
+	message msg;
 };
 
 /** @brief User update */
@@ -1507,26 +1604,60 @@ struct DPP_EXPORT voice_ready_t : public event_dispatch_t {
 
 /** @brief voice receive packet */
 struct DPP_EXPORT voice_receive_t : public event_dispatch_t {
+
+friend class discord_voice_client;
+
 	/** 
 	 * @brief Constructor
 	 * @param client The shard the event originated on.
 	 * WILL ALWAYS be NULL.
-	 * @param raw Raw event text as JSON
+	 * @param raw Raw event text as UDP packet.
 	 */
 	voice_receive_t(class discord_client* client, const std::string &raw);
+	/**
+	 * @brief Construct a new voice receive t object
+	 * 
+	 * @param client The shard the event originated on.
+	 * WILL ALWAYS be NULL.
+	 * @param raw Raw event text as UDP packet.
+	 * @param vc owning voice client pointer
+	 * @param _user_id user id who is speaking, 0 for a mix of all user audio
+	 * @param pcm user audio to set
+	 * @param length length of user audio in bytes
+	 */
+	voice_receive_t(class discord_client* client, const std::string &raw, class discord_voice_client* vc, snowflake _user_id, uint8_t* pcm, size_t length);
+	/**
+	 * @brief Voice client
+	 */
 	class discord_voice_client* voice_client;
 	/**
-	 * @brief Audio data, encoded as 48kHz stereo PCM or Opus
+	 * @brief Audio data, encoded as 48kHz stereo PCM or Opus,
+	 * @deprecated Please switch to using audio_data.
 	 */
-	uint8_t* audio;
+	uint8_t* audio = nullptr;
 	/**
 	 * @brief Size of audio buffer
+	 * @deprecated Please switch to using audio_data.
 	 */
-	size_t audio_size;
+	size_t audio_size = 0;
+	/**
+	 * @brief Audio data, encoded as 48kHz stereo PCM or Opus,
+	 */
+	std::basic_string<uint8_t> audio_data;
 	/**
 	 * @brief User ID of speaker (zero if unknown)
 	 */
 	snowflake user_id;
+protected:
+	/**
+	 * @brief Reassign values outside of the constructor for use within discord_voice_client
+	 * 
+	 * @param vc owning voice client pointer
+	 * @param _user_id user id who is speaking, 0 for a mix of all user audio
+	 * @param pcm user audio to set
+	 * @param length length of user audio in bytes
+	 */
+	void reassign(class discord_voice_client* vc, snowflake _user_id, uint8_t* pcm, size_t length);
 };
 
 /** @brief voice client speaking event */

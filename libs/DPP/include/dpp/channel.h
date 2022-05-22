@@ -540,7 +540,7 @@ public:
 	 * @param with_id include the ID in the json
 	 * @return std::string JSON string
 	 */
-	virtual std::string build_json(bool with_id = false) const;
+	std::string build_json(bool with_id = false) const;
 
 };
 

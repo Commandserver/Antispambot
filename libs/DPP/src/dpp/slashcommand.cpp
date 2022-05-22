@@ -30,7 +30,7 @@ namespace dpp {
 
 using json = nlohmann::json;
 
-slashcommand::slashcommand() : managed(), application_id(0), type(ctxm_chat_input), default_permission(true), version(1) {
+slashcommand::slashcommand() : managed(), application_id(0), type(ctxm_chat_input), default_permission(true), version(1), default_member_permissions(p_use_application_commands), dm_permission(false) {
 }
 
 slashcommand::slashcommand(const std::string &_name, const std::string &_description, const dpp::snowflake _application_id) : slashcommand() {
@@ -42,15 +42,29 @@ slashcommand::slashcommand(const std::string &_name, const std::string &_descrip
 slashcommand::~slashcommand() {
 }
 
+slashcommand& slashcommand::set_dm_permission(bool dm) {
+	dm_permission = dm;
+	return *this;
+}
+
+slashcommand& slashcommand::set_default_permissions(uint64_t defaults) {
+	default_member_permissions = defaults;
+	return *this;
+}
+
 slashcommand& slashcommand::fill_from_json(nlohmann::json* j) {
 	id = snowflake_not_null(j, "id");
 	name = string_not_null(j, "name");
 	description = string_not_null(j, "description");
 	version = snowflake_not_null(j, "version");
 	application_id = snowflake_not_null(j, "application_id");
-	default_permission = bool_not_null(j, "default_permission");
+	// DEPRECATED
+	// default_permission = bool_not_null(j, "default_permission");
+	default_member_permissions = snowflake_not_null(j, "default_member_permissions");
+	dm_permission = bool_not_null(j, "dm_permission");
+
 	type = (slashcommand_contextmenu_type)int8_not_null(j, "type");
-	if (j->find("options") != j->end()) {
+	if (j->contains("options")) {
 		for (auto &option: (*j)["options"]) {
 			// options is filled recursive
 			options.push_back(command_option().fill_from_json(&option));
@@ -72,6 +86,12 @@ void to_json(json& j, const command_option_choice& choice) {
 	} else {
 		j["value"] = std::get<std::string>(choice.value);
 	}
+	if (choice.name_localizations.size()) {
+		j["name_localizations"] = json::object();
+		for(auto& loc : choice.name_localizations) {
+			j["name_localizations"][loc.first] = loc.second;
+		}
+	}
 }
 
 command_option& command_option::set_min_value(command_option_range min_v) {
@@ -90,6 +110,19 @@ void to_json(json& j, const command_option& opt) {
 	j["type"] = opt.type;
 	j["autocomplete"] = opt.autocomplete;
 	j["required"] = opt.required;
+
+	if (opt.name_localizations.size()) {
+		j["name_localizations"] = json::object();
+		for(auto& loc : opt.name_localizations) {
+			j["name_localizations"][loc.first] = loc.second;
+		}
+	}
+	if (opt.description_localizations.size()) {
+		j["description_localizations"] = json::object();
+		for(auto& loc : opt.description_localizations) {
+			j["description_localizations"][loc.first] = loc.second;
+		}
+	}
 
 	/* Check for minimum and maximum values */
 	if (opt.type == dpp::co_number || opt.type == dpp::co_integer) {
@@ -159,6 +192,22 @@ void to_json(json& j, const slashcommand& p) {
 		j["type"] = p.type;
 	}
 
+	j["default_member_permissions"] = std::to_string(p.default_member_permissions);
+	j["dm_permission"] = p.dm_permission;
+
+	if (p.name_localizations.size()) {
+		j["name_localizations"] = json::object();
+		for(auto& loc : p.name_localizations) {
+			j["name_localizations"][loc.first] = loc.second;
+		}
+	}
+	if (p.description_localizations.size()) {
+		j["description_localizations"] = json::object();
+		for(auto& loc : p.description_localizations) {
+			j["description_localizations"][loc.first] = loc.second;
+		}
+	}
+
 	if (p.type != ctxm_user && p.type != ctxm_message) {
 		if (p.options.size()) {
 			j["options"] = json();
@@ -179,7 +228,8 @@ void to_json(json& j, const slashcommand& p) {
 		}
 	}
 
-	j["default_permission"] = p.default_permission;
+	// DEPRECATED
+	// j["default_permission"] = p.default_permission;
 	j["application_id"] = std::to_string(p.application_id);
 }
 
@@ -195,11 +245,18 @@ std::string slashcommand::build_json(bool with_id) const {
 
 slashcommand& slashcommand::set_type(slashcommand_contextmenu_type t) {
 	type = t;
+	if (type == ctxm_chat_input) {
+		name = lowercase(name);
+	}
 	return *this;
 }
 
 slashcommand& slashcommand::set_name(const std::string &n) {
-	name = lowercase(utility::utf8substr(n, 0, 32));
+	if (type == ctxm_chat_input) {
+		name = lowercase(utility::utf8substr(n, 0, 32));
+	} else {
+		name = utility::utf8substr(n, 0, 32);
+	}
 	return *this;
 }
 
@@ -239,6 +296,11 @@ command_option_choice &command_option_choice::fill_from_json(nlohmann::json *j) 
 		value.emplace<int64_t>((*j)["value"]);
 	} else { // else string
 		value.emplace<std::string>((*j)["value"]);
+	}
+	if (j->contains("name_localizations")) {
+		for(auto loc = (*j)["name_localizations"].begin(); loc != (*j)["name_localizations"].end(); ++loc) {
+			name_localizations[loc.key()] = loc.value();
+		}
 	}
 
 	return *this;
@@ -289,13 +351,24 @@ command_option &command_option::fill_from_json(nlohmann::json *j) {
         o.name = string_not_null(j, "name");
         o.description = string_not_null(j, "description");
         o.required = bool_not_null(j, "required");
-        if (j->find("choices") != j->end()) {
+        if (j->contains("choices")) {
             for (auto& jchoice : (*j)["choices"]) {
                 o.choices.push_back(command_option_choice().fill_from_json(&jchoice));
             }
         }
 
-        if (j->find("options") != j->end() && i > 0) {
+	if (j->contains("name_localizations")) {
+		for(auto loc = (*j)["name_localizations"].begin(); loc != (*j)["name_localizations"].end(); ++loc) {
+			o.name_localizations[loc.key()] = loc.value();
+		}
+	}
+	if (j->contains("description_localizations")) {
+		for(auto loc = (*j)["description_localizations"].begin(); loc != (*j)["description_localizations"].end(); ++loc) {
+			o.description_localizations[loc.key()] = loc.value();
+		}
+	}
+
+        if (j->contains("options") && i > 0) {
             i--; // prevent infinite recursion call with a counter
             for (auto &joption : (*j)["options"]) {
                 command_option p;
@@ -304,19 +377,19 @@ command_option &command_option::fill_from_json(nlohmann::json *j) {
             }
         }
 
-        if (j->find("channel_types") != j->end()) {
+        if (j->contains("channel_types")) {
             for (auto& jtype : (*j)["channel_types"]) {
                 o.channel_types.push_back( (channel_type)jtype.get<int8_t>());
             }
         }
-        if (j->find("min_value") != j->end()) {
+        if (j->contains("min_value")) {
             if ((*j)["min_value"].is_number_integer()) {
                 o.min_value.emplace<int64_t>(int64_not_null(j, "min_value"));
             } else if ((*j)["min_value"].is_number()) {
                 o.min_value.emplace<double>(double_not_null(j, "min_value"));
             }
         }
-        if (j->find("max_value") != j->end()) {
+        if (j->contains("max_value")) {
             if ((*j)["max_value"].is_number_integer()) {
                 o.min_value.emplace<int64_t>(int64_not_null(j, "max_value"));
             } else if ((*j)["max_value"].is_number()) {
@@ -382,6 +455,23 @@ interaction& interaction::fill_from_json(nlohmann::json* j) {
 std::string interaction::build_json(bool with_id) const {
 	/* There is no facility to build the json of an interaction as bots don't send them, only the API sends them as an event payload */
 	return "";
+}
+
+slashcommand& slashcommand::add_localization(const std::string& language, const std::string& _name, const std::string& _description) {
+	name_localizations[language] = _name;
+	description_localizations[language] = _description;
+	return *this;
+}
+
+command_option_choice& command_option_choice::add_localization(const std::string& language, const std::string& _name) {
+	name_localizations[language] = _name;
+	return *this;
+}
+
+command_option& command_option::add_localization(const std::string& language, const std::string& _name, const std::string& _description) {
+	name_localizations[language] = _name;
+	description_localizations[language] = _description;
+	return *this;
 }
 
 void from_json(const nlohmann::json& j, command_data_option& cdo) {
@@ -600,7 +690,7 @@ interaction_response::interaction_response(interaction_response_type t) : intera
 
 interaction_response& interaction_response::fill_from_json(nlohmann::json* j) {
 	type = (interaction_response_type)int8_not_null(j, "type");
-	if (j->find("data") != j->end()) {
+	if (j->contains("data")) {
 		msg->fill_from_json(&((*j)["data"]));
 	}
 	return *this;
@@ -720,7 +810,7 @@ guild_command_permissions &guild_command_permissions::fill_from_json(nlohmann::j
 	id = snowflake_not_null(j, "id");
 	application_id = snowflake_not_null(j, "application_id");
 	guild_id = snowflake_not_null(j, "guild_id");
-	if (j->find("permissions") != j->end()) {
+	if (j->contains("permissions")) {
 		for (auto &p : (*j)["permissions"]) {
 			permissions.push_back(command_permission().fill_from_json(&p));
 		}

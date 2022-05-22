@@ -820,147 +820,145 @@ int main() {
 		}
     });
 
-	bot.on_interaction_create([&domainBlacklist, &forbiddenWords, &bypassConfig](const dpp::interaction_create_t &event) {
-		if (event.command.type == dpp::it_application_command) {
-			dpp::command_interaction cmd_data = get<dpp::command_interaction>(event.command.data);
-			/* Check which command they ran */
-			if (cmd_data.name == "manage" and !cmd_data.options.empty() and !cmd_data.options[0].options.empty()) {
-				if (cmd_data.options[0].name == "domainblacklist" and !cmd_data.options[0].options[0].options.empty()) {
-					if (cmd_data.options[0].options[0].name == "add") {
-						string domain = get<string>(cmd_data.options[0].options[0].options[0].value);
+	bot.on_slashcommand([&domainBlacklist, &forbiddenWords, &bypassConfig](const dpp::slashcommand_t &event) {
+		dpp::command_interaction cmd_data = get<dpp::command_interaction>(event.command.data);
+		/* Check which command they ran */
+		if (cmd_data.name == "manage" and !cmd_data.options.empty() and !cmd_data.options[0].options.empty()) {
+			if (cmd_data.options[0].name == "domainblacklist" and !cmd_data.options[0].options[0].options.empty()) {
+				if (cmd_data.options[0].options[0].name == "add") {
+					string domain = get<string>(cmd_data.options[0].options[0].options[0].value);
 
-						regex domain_pattern(R"(https?:\/\/.*?([^.]+\.[A-z]+)(?:\/|#|\?|:|\Z|$).*$)", regex_constants::icase);
-						smatch domain_matches;
-						if (regex_match(domain, domain_matches, domain_pattern) and domain_matches.size() == 2) {
-							domain = domain_matches[1];
-						} else if (!regex_match(domain, regex(R"(^\S*?\.[A-z]+$)"))) {
-							event.reply(dpp::message("`" + domain + "` ist keine gültige Domain :x:").set_flags(dpp::m_ephemeral));
-							return;
-						}
-						transform(domain.begin(), domain.end(), domain.begin(), ::tolower); // to lowercase
-
-						if (domainBlacklist.contains(domain)) {
-							event.reply(dpp::message("`" + domain + "` ist schon auf der Blacklist").set_flags(dpp::m_ephemeral));
-						}
-
-						domainBlacklist.insert(domain);
-						domainBlacklist.save();
-
-						event.reply(dpp::message("`" + domain + "` wurde der Blacklist hinzugefügt :white_check_mark:").set_flags(dpp::m_ephemeral));
-					} else if (cmd_data.options[0].options[0].name == "remove") {
-						string domain = get<string>(cmd_data.options[0].options[0].options[0].value);
-
-						regex domain_pattern(R"(https?:\/\/.*?([^.]+\.[A-z]+)(?:\/|#|\?|:|\Z|$).*$)", regex_constants::icase);
-						smatch domain_matches;
-						if (regex_match(domain, domain_matches, domain_pattern) and domain_matches.size() == 2) {
-							domain = domain_matches[1];
-						} else if (!regex_match(domain, regex(R"(^\S*?\.[A-z]+$)"))) {
-							event.reply(dpp::message("`" + domain + "` ist keine gültige Domain :x:").set_flags(dpp::m_ephemeral));
-							return;
-						}
-						transform(domain.begin(), domain.end(), domain.begin(), ::tolower); // to lowercase
-
-						if (!domainBlacklist.contains(domain)) {
-							event.reply(dpp::message("`" + domain + "` ist nicht auf der Blacklist").set_flags(dpp::m_ephemeral));
-						}
-
-						domainBlacklist.remove(domain);
-						domainBlacklist.save();
-
-						event.reply(dpp::message("`" + domain + "` wurde von der Blacklist entfernt :white_check_mark:").set_flags(dpp::m_ephemeral));
+					regex domain_pattern(R"(https?:\/\/.*?([^.]+\.[A-z]+)(?:\/|#|\?|:|\Z|$).*$)", regex_constants::icase);
+					smatch domain_matches;
+					if (regex_match(domain, domain_matches, domain_pattern) and domain_matches.size() == 2) {
+						domain = domain_matches[1];
+					} else if (!regex_match(domain, regex(R"(^\S*?\.[A-z]+$)"))) {
+						event.reply(dpp::message("`" + domain + "` ist keine gültige Domain :x:").set_flags(dpp::m_ephemeral));
+						return;
 					}
-				} else if (cmd_data.options[0].name == "forbiddenwords" and !cmd_data.options[0].options[0].options.empty()) {
-					if (cmd_data.options[0].options[0].name == "add") {
-						string word = get<string>(cmd_data.options[0].options[0].options[0].value);
-						transform(word.begin(), word.end(), word.begin(), ::tolower); // to lowercase
+					transform(domain.begin(), domain.end(), domain.begin(), ::tolower); // to lowercase
 
-						if (forbiddenWords.contains(word)) {
-							event.reply(dpp::message("`" + word + "` ist schon in der Schimpfwörter Bibliothek :white_check_mark:").set_flags(dpp::m_ephemeral));
-						}
-
-						forbiddenWords.insert(word);
-						forbiddenWords.save();
-
-						event.reply(dpp::message("`" + word + "` wurde zur Schimpfwörter Bibliothek hinzugefügt :white_check_mark:").set_flags(dpp::m_ephemeral));
-					} else if (cmd_data.options[0].options[0].name == "remove") {
-						string word = get<string>(cmd_data.options[0].options[0].options[0].value);
-						transform(word.begin(), word.end(), word.begin(), ::tolower); // to lowercase
-
-						if (!forbiddenWords.contains(word)) {
-							event.reply(dpp::message("`" + word + "` ist nicht in der Schimpfwörter Bibliothek :x:").set_flags(dpp::m_ephemeral));
-						}
-
-						forbiddenWords.remove(word);
-						forbiddenWords.save();
-
-						event.reply(dpp::message("`" + word + "` wurde aus der Schimpfwörter Bibliothek entfernt :white_check_mark:").set_flags(dpp::m_ephemeral));
+					if (domainBlacklist.contains(domain)) {
+						event.reply(dpp::message("`" + domain + "` ist schon auf der Blacklist").set_flags(dpp::m_ephemeral));
 					}
-				} else if (cmd_data.options[0].name == "bypass") {
-					if (cmd_data.options[0].options[0].name == "add" and !cmd_data.options[0].options[0].options.empty()) {
-						auto id = get<dpp::snowflake>(cmd_data.options[0].options[0].options[0].value);
 
-						string mention;
-						if (dpp::find_role(id)) {
-							mention = "<@&" + to_string(id) + ">";
-						} else {
-							mention = "<@" + to_string(id) + ">";
-						}
+					domainBlacklist.insert(domain);
+					domainBlacklist.save();
 
-						if (bypassConfig.contains(to_string(id))) {
-							event.reply(dpp::message(":white_check_mark: " + mention + " ist schon ausgeschlossen vom Anti-Spam-System").set_flags(dpp::m_ephemeral));
-						} else {
-							bypassConfig.insert(to_string(id));
-							bypassConfig.save();
+					event.reply(dpp::message("`" + domain + "` wurde der Blacklist hinzugefügt :white_check_mark:").set_flags(dpp::m_ephemeral));
+				} else if (cmd_data.options[0].options[0].name == "remove") {
+					string domain = get<string>(cmd_data.options[0].options[0].options[0].value);
 
-							event.reply(dpp::message(":white_check_mark: " + mention + " ist nun ausgeschlossen vom Anti-Spam-System").set_flags(dpp::m_ephemeral));
-						}
-					} else if (cmd_data.options[0].options[0].name == "remove" and !cmd_data.options[0].options[0].options.empty()) {
-						auto id = get<dpp::snowflake>(cmd_data.options[0].options[0].options[0].value);
+					regex domain_pattern(R"(https?:\/\/.*?([^.]+\.[A-z]+)(?:\/|#|\?|:|\Z|$).*$)", regex_constants::icase);
+					smatch domain_matches;
+					if (regex_match(domain, domain_matches, domain_pattern) and domain_matches.size() == 2) {
+						domain = domain_matches[1];
+					} else if (!regex_match(domain, regex(R"(^\S*?\.[A-z]+$)"))) {
+						event.reply(dpp::message("`" + domain + "` ist keine gültige Domain :x:").set_flags(dpp::m_ephemeral));
+						return;
+					}
+					transform(domain.begin(), domain.end(), domain.begin(), ::tolower); // to lowercase
 
-						string mention;
-						if (dpp::find_role(id)) {
-							mention = "<@&" + to_string(id) + ">";
-						} else {
-							mention = "<@" + to_string(id) + ">";
-						}
+					if (!domainBlacklist.contains(domain)) {
+						event.reply(dpp::message("`" + domain + "` ist nicht auf der Blacklist").set_flags(dpp::m_ephemeral));
+					}
 
-						if (!bypassConfig.contains(to_string(id))) {
-							event.reply(dpp::message(mention + " ist nicht ausgeschlossen").set_flags(dpp::m_ephemeral));
-						} else {
-							bypassConfig.remove(to_string(id));
-							bypassConfig.save();
+					domainBlacklist.remove(domain);
+					domainBlacklist.save();
 
-							event.reply(dpp::message(":white_check_mark: " + mention + " ist nicht mehr vom Anti-Spam-System ausgeschlossen").set_flags(dpp::m_ephemeral));
-						}
-					} else if (cmd_data.options[0].options[0].name == "list") {
-						string userMentions;
-						string roleMentions;
+					event.reply(dpp::message("`" + domain + "` wurde von der Blacklist entfernt :white_check_mark:").set_flags(dpp::m_ephemeral));
+				}
+			} else if (cmd_data.options[0].name == "forbiddenwords" and !cmd_data.options[0].options[0].options.empty()) {
+				if (cmd_data.options[0].options[0].name == "add") {
+					string word = get<string>(cmd_data.options[0].options[0].options[0].value);
+					transform(word.begin(), word.end(), word.begin(), ::tolower); // to lowercase
 
-						// loop through the saved ids to check whether they're roles or users
-						{
-							shared_lock l(bypassConfig.get_mutex());
-							for (auto &entry : bypassConfig.get_container()) {
-								if (dpp::find_role(stol(entry))) {
-									roleMentions += "<@&" + entry + ">\n";
-								} else {
-									userMentions += "<@" + entry + ">\n";
-								}
+					if (forbiddenWords.contains(word)) {
+						event.reply(dpp::message("`" + word + "` ist schon in der Schimpfwörter Bibliothek :white_check_mark:").set_flags(dpp::m_ephemeral));
+					}
+
+					forbiddenWords.insert(word);
+					forbiddenWords.save();
+
+					event.reply(dpp::message("`" + word + "` wurde zur Schimpfwörter Bibliothek hinzugefügt :white_check_mark:").set_flags(dpp::m_ephemeral));
+				} else if (cmd_data.options[0].options[0].name == "remove") {
+					string word = get<string>(cmd_data.options[0].options[0].options[0].value);
+					transform(word.begin(), word.end(), word.begin(), ::tolower); // to lowercase
+
+					if (!forbiddenWords.contains(word)) {
+						event.reply(dpp::message("`" + word + "` ist nicht in der Schimpfwörter Bibliothek :x:").set_flags(dpp::m_ephemeral));
+					}
+
+					forbiddenWords.remove(word);
+					forbiddenWords.save();
+
+					event.reply(dpp::message("`" + word + "` wurde aus der Schimpfwörter Bibliothek entfernt :white_check_mark:").set_flags(dpp::m_ephemeral));
+				}
+			} else if (cmd_data.options[0].name == "bypass") {
+				if (cmd_data.options[0].options[0].name == "add" and !cmd_data.options[0].options[0].options.empty()) {
+					auto id = get<dpp::snowflake>(cmd_data.options[0].options[0].options[0].value);
+
+					string mention;
+					if (dpp::find_role(id)) {
+						mention = "<@&" + to_string(id) + ">";
+					} else {
+						mention = "<@" + to_string(id) + ">";
+					}
+
+					if (bypassConfig.contains(to_string(id))) {
+						event.reply(dpp::message(":white_check_mark: " + mention + " ist schon ausgeschlossen vom Anti-Spam-System").set_flags(dpp::m_ephemeral));
+					} else {
+						bypassConfig.insert(to_string(id));
+						bypassConfig.save();
+
+						event.reply(dpp::message(":white_check_mark: " + mention + " ist nun ausgeschlossen vom Anti-Spam-System").set_flags(dpp::m_ephemeral));
+					}
+				} else if (cmd_data.options[0].options[0].name == "remove" and !cmd_data.options[0].options[0].options.empty()) {
+					auto id = get<dpp::snowflake>(cmd_data.options[0].options[0].options[0].value);
+
+					string mention;
+					if (dpp::find_role(id)) {
+						mention = "<@&" + to_string(id) + ">";
+					} else {
+						mention = "<@" + to_string(id) + ">";
+					}
+
+					if (!bypassConfig.contains(to_string(id))) {
+						event.reply(dpp::message(mention + " ist nicht ausgeschlossen").set_flags(dpp::m_ephemeral));
+					} else {
+						bypassConfig.remove(to_string(id));
+						bypassConfig.save();
+
+						event.reply(dpp::message(":white_check_mark: " + mention + " ist nicht mehr vom Anti-Spam-System ausgeschlossen").set_flags(dpp::m_ephemeral));
+					}
+				} else if (cmd_data.options[0].options[0].name == "list") {
+					string userMentions;
+					string roleMentions;
+
+					// loop through the saved ids to check whether they're roles or users
+					{
+						shared_lock l(bypassConfig.get_mutex());
+						for (auto &entry : bypassConfig.get_container()) {
+							if (dpp::find_role(stol(entry))) {
+								roleMentions += "<@&" + entry + ">\n";
+							} else {
+								userMentions += "<@" + entry + ">\n";
 							}
 						}
+					}
 
-						auto embed = dpp::embed()
-								.set_description("Vom Anti-Spam-System ausgeschlossene Rollen und User");
-						if (!userMentions.empty()) {
-							embed.add_field("Bypassed users", userMentions);
-						}
-						if (!roleMentions.empty()) {
-							embed.add_field("Bypassed roles", roleMentions);
-						}
-						if (userMentions.empty() and roleMentions.empty()) {
-							event.reply(dpp::message("Niemand ist vom Anti-Spam-System ausgeschlossen").set_flags(dpp::m_ephemeral));
-						} else {
-							event.reply(dpp::message().set_flags(dpp::m_ephemeral).add_embed(embed));
-						}
+					auto embed = dpp::embed()
+							.set_description("Vom Anti-Spam-System ausgeschlossene Rollen und User");
+					if (!userMentions.empty()) {
+						embed.add_field("Bypassed users", userMentions);
+					}
+					if (!roleMentions.empty()) {
+						embed.add_field("Bypassed roles", roleMentions);
+					}
+					if (userMentions.empty() and roleMentions.empty()) {
+						event.reply(dpp::message("Niemand ist vom Anti-Spam-System ausgeschlossen").set_flags(dpp::m_ephemeral));
+					} else {
+						event.reply(dpp::message().set_flags(dpp::m_ephemeral).add_embed(embed));
 					}
 				}
 			}
