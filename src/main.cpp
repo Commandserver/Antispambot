@@ -203,6 +203,9 @@ int main() {
 	}, 10); // execute every 10 seconds
 
 	bot.on_guild_member_add([&](const dpp::guild_member_add_t &event) {
+		/* continue only on the correct guild */
+		if (event.adding_guild->id != config["guild-id"]) return;
+
 		/* add the member to the cache */
 		{
 			/* Make a permanent pointer using new, for each message to be cached */
