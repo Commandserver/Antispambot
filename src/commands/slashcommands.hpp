@@ -12,16 +12,7 @@ namespace commands {
 		dpp::slashcommand m;
 		m.set_name("manage");
 		m.set_description("Bot Settings");
-		m.disable_default_permissions();
-
-		// attach permissions to the slash command
-		for (auto &id: config["admin-user-ids"]) {
-			auto perms = dpp::command_permission();
-			perms.id = id;
-			perms.type = dpp::cpt_user;
-			perms.permission = true;
-			m.add_permission(perms);
-		}
+		m.set_default_permissions(0);
 
 		m.add_option(dpp::command_option(dpp::co_sub_command_group, "domainblacklist", "Configure forbidden domains")
 							 .add_option(dpp::command_option(dpp::co_sub_command, "add",

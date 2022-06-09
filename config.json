@@ -2,9 +2,6 @@
     "token": "YOUR TOKEN",
     "log-filename": "latest.log",
     "thread-rate-limit": 3,
-    "admin-user-ids": [
-        123456
-    ],
     "log-channel-id": 845270302471487515,
     "log-webhook-url": "https://discord.com/api/webhooks/984535435302797342/VGCiwUxZxuH4LW6RrVeoNxTClkWkE9AXIRrJ_yhNmgeCG2vNqXkEtwhp91_iAiTKtiSX",
     "guild-id": 938499352297406484,
