@@ -160,7 +160,7 @@ int main() {
 			dpp::embed embed;
 			embed.set_color(0xff0000);
 			embed.set_timestamp(first_join);
-			embed.set_title(fmt::format(":o: Raid detected with {} Users", fast_joined_members.count()));
+			embed.set_title(fmt::format(":o: Raid detected with {} Users @here", fast_joined_members.count()));
 			dpp::guild_member *firstUser;
 			dpp::guild_member *lastUser;
 			string memberStr;
@@ -185,6 +185,7 @@ int main() {
 			embed.add_field("Last user", fmt::format("User: {}\nJoined: {}\n\u200b", lastUser->get_mention(), dpp::utility::timestamp(lastUser->joined_at, dpp::utility::tf_long_time)), true);
 			embed.set_description(memberStr);
 			dpp::message msg;
+			msg.allowed_mentions.parse_everyone = true;
 			msg.channel_id = config["log-channel-id"];
 			msg.add_embed(embed);
 			bot.message_create(msg, [&log](const dpp::confirmation_callback_t &c) {
@@ -454,14 +455,7 @@ int main() {
 						)
 				);
 			}
-			dpp::message msg;
-			msg.channel_id = config["log-channel-id"];
-			msg.add_embed(embed);
-			bot.message_create(msg, [&bot](const dpp::confirmation_callback_t &c) {
-				if (c.is_error()) {
-					bot.log(dpp::ll_error, "error while sending spam-log-message: " + c.http_info.body);
-				}
-			});
+			bot.execute_webhook(dpp::webhook(config["log-webhook-url"]), dpp::message().add_embed(embed));
 			if (clearHistoryMessages) {
 				deleteUserMessages(event.msg.author.id);
 			} else {
@@ -788,14 +782,9 @@ int main() {
 							s += "\nCode: _" + invite.code + "_";
 							embed.add_field("Invitation details", s);
 						}
-						dpp::message logMsg;
-						logMsg.channel_id = config["log-channel-id"];
-						logMsg.add_embed(embed);
-						bot.message_create(logMsg, [&bot](const dpp::confirmation_callback_t &c) {
-							if (c.is_error()) {
-								bot.log(dpp::ll_error, "error while sending the log message: " + c.http_info.body);
-							}
-						});
+						// log
+						bot.execute_webhook(dpp::webhook(config["log-webhook-url"]), dpp::message().add_embed(embed));
+
 						deleteUserMessages(msg.author.id);
 					};
 					if (!e.is_error()) {
