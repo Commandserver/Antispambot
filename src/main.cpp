@@ -46,7 +46,7 @@ int main() {
                                             spdlog::async_overflow_policy::block);
     spdlog::register_logger(log);
     log->set_pattern("%^%Y-%m-%d %H:%M:%S.%e [%L] [th#%t]%$ : %v");
-    log->set_level(spdlog::level::level_enum::debug);
+    log->set_level(spdlog::level::level_enum::info);
 
     /* Integrate spdlog logger to D++ log events */
     bot.on_log([&log](const dpp::log_t &event) {
@@ -237,10 +237,10 @@ int main() {
 				}
 			}
 
-			/* when more than 12 (currently 4 for testing) members joined in the past 60 seconds
-			 * adjust this number depending on your guild-size. I think 12 should be enough
+			/* when more than 12 members joined in the past 60 seconds
+			 * you can adjust this number depending on your guild-size. I think 12 should be enough
 			 */
-			if (fast_joined_member_count >= 4) {
+			if (fast_joined_member_count >= 12) {
 				if (!first_join) {
 					first_join = time(nullptr);
 				}
@@ -277,13 +277,14 @@ int main() {
 			auto member = dpp::find_guild_member(guildId, userId);
 			time_t muteUntil = time(nullptr) + muteDuration;
 			if (member.communication_disabled_until < muteUntil) {
-				bot.guild_member_timeout(guildId, userId, muteUntil, [&bot, userId](const dpp::confirmation_callback_t &e) {
+				bot.set_audit_reason("spam detected").guild_member_timeout(guildId, userId, muteUntil, [&bot, userId](const dpp::confirmation_callback_t &e) {
 					if (e.is_error()) {
 						bot.log(dpp::ll_error, "cannot timeout member " + e.http_info.body);
 					} else {
 						bot.log(dpp::ll_info, "timed out " + to_string(userId));
 					}
 				});
+				bot.clear_audit_reason();
 			}
 		} catch (dpp::cache_exception &exception) {
 			bot.log(dpp::ll_error, "couldn't find user " + to_string(userId) + " in cache");
@@ -302,48 +303,46 @@ int main() {
 
 	/// helper function to delete all cached messages of a user in case of spam
 	function deleteUserMessages = [&message_cache, &bot](const dpp::snowflake userId) {
-		{
-			unordered_map<dpp::snowflake, dpp::message *> &msgCache = message_cache.get_container();
-			/* IMPORTANT: We must lock the container to iterate it */
-			shared_lock l(message_cache.get_mutex());
+		unordered_map<dpp::snowflake, dpp::message *> &msgCache = message_cache.get_container();
+		/* IMPORTANT: We must lock the container to iterate it */
+		shared_lock l(message_cache.get_mutex());
 
-			set<dpp::snowflake> channelIds; // store channel ids in which the user has written to
-			for (const auto &[msgId, msg]: msgCache) {
-				if (msg->author.id == userId) {
-					channelIds.insert(msg->channel_id);
-				}
+		set<dpp::snowflake> channelIds; // store channel ids in which the user has written to
+		for (const auto &[msgId, msg]: msgCache) {
+			if (msg->author.id == userId) {
+				channelIds.insert(msg->channel_id);
 			}
-			uint32_t deletionCount = 0;
-			for (const auto &channelId : channelIds) { // loop through each channel id to bulk delete the user messages whenever it's possible
-				vector<dpp::snowflake> messageIds;
-				// collect all (cached) messages from this channel sent by the user
-				for (const auto &[msgId, msg]: msgCache) {
-					if (msg->author.id == userId and msg->channel_id == channelId and find(messageIds.begin(), messageIds.end(), msgId) == messageIds.end()) {
-						messageIds.push_back(msgId);
-					}
-					if (messageIds.size() >= 100) { // ensure max 100 messages to bulk delete
-						break;
-					}
-				}
-				deletionCount += messageIds.size();
-
-				// bulk delete message ids
-				if (messageIds.size() > 1) {
-					bot.message_delete_bulk(messageIds, channelId, [&bot](const dpp::confirmation_callback_t &e) {
-						if (e.is_error()) {
-							bot.log(dpp::ll_error, "couldn't bulk delete messages: " + e.http_info.body);
-						}
-					});
-				} else if (!messageIds.empty()) {
-					bot.message_delete(messageIds[0], channelId, [&bot](const dpp::confirmation_callback_t &e) {
-						if (e.is_error()) {
-							bot.log(dpp::ll_error, "couldn't delete message: " + e.http_info.body);
-						}
-					});
-				}
-			}
-			bot.log(dpp::ll_debug, "added " + to_string(deletionCount) + " messages to deletion queue");
 		}
+		uint32_t deletionCount = 0;
+		for (const auto &channelId : channelIds) { // loop through each channel id to bulk delete the user messages whenever it's possible
+			vector<dpp::snowflake> messageIds;
+			// collect all (cached) messages from this channel sent by the user
+			for (const auto &[msgId, msg]: msgCache) {
+				if (msg->author.id == userId and msg->channel_id == channelId and find(messageIds.begin(), messageIds.end(), msgId) == messageIds.end()) {
+					messageIds.push_back(msgId);
+				}
+				if (messageIds.size() >= 100) { // ensure max 100 messages to bulk delete
+					break;
+				}
+			}
+			deletionCount += messageIds.size();
+
+			// bulk delete message ids
+			if (messageIds.size() > 1) {
+				bot.message_delete_bulk(messageIds, channelId, [&bot](const dpp::confirmation_callback_t &e) {
+					if (e.is_error()) {
+						bot.log(dpp::ll_error, "couldn't bulk delete messages: " + e.http_info.body);
+					}
+				});
+			} else if (!messageIds.empty()) {
+				bot.message_delete(messageIds[0], channelId, [&bot](const dpp::confirmation_callback_t &e) {
+					if (e.is_error()) {
+						bot.log(dpp::ll_error, "couldn't delete message: " + e.http_info.body);
+					}
+				});
+			}
+		}
+		bot.log(dpp::ll_debug, "added " + to_string(deletionCount) + " messages to deletion queue");
 	};
 
 	bot.on_message_create([&bot, &log, &message_cache, &domainBlacklist, &forbiddenWords, &config, &bypassConfig, &muteMember, &deleteUserMessages, &deleteMsg](const dpp::message_create_t &event) {
