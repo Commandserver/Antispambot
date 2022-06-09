@@ -3,7 +3,8 @@
     "log-filename": "latest.log",
     "thread-rate-limit": 3,
     "log-channel-id": 845270302471487515,
-    "guild-id": 938499352297406484,
+    "log-webhook-url": "https://discord.com/api/webhooks/984535435302797342/VGCiwUxZxuH4LW6RrVeoNxTClkWkE9AXIRrJ_yhNmgeCG2vNqXkEtwhp91_iAiTKtiSX",
+    "guild-id": 788499352297406484,
     "excluded_channel_ids": [
         123456
     ],

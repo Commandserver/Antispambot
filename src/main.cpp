@@ -449,14 +449,7 @@ int main() {
 						)
 				);
 			}
-			dpp::message msg;
-			msg.channel_id = config["log-channel-id"];
-			msg.add_embed(embed);
-			bot.message_create(msg, [&bot](const dpp::confirmation_callback_t &c) {
-				if (c.is_error()) {
-					bot.log(dpp::ll_error, "error while sending spam-log-message: " + c.http_info.body);
-				}
-			});
+			bot.execute_webhook(dpp::webhook(config["log-webhook-url"]), dpp::message().add_embed(embed));
 			if (clearHistoryMessages) {
 				deleteUserMessages(event.msg.author.id);
 			} else {
@@ -789,14 +782,7 @@ int main() {
 							s += "\nCode: _" + invite.code + "_";
 							embed.add_field("Einladungs details", s);
 						}
-						dpp::message logMsg;
-						logMsg.channel_id = config["log-channel-id"];
-						logMsg.add_embed(embed);
-						bot.message_create(logMsg, [&bot](const dpp::confirmation_callback_t &c) {
-							if (c.is_error()) {
-								bot.log(dpp::ll_error, "error while sending the log message: " + c.http_info.body);
-							}
-						});
+						bot.execute_webhook(dpp::webhook(config["log-webhook-url"]), dpp::message().add_embed(embed));
 						deleteUserMessages(msg.author.id);
 					};
 					if (!e.is_error()) {
