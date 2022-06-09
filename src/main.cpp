@@ -543,6 +543,19 @@ int main() {
 						message.rfind(forbiddenWord, 0) == 0 or endsWith(message, forbiddenWord)) { // search the bad word in the message
 							log->debug("bad word: " + forbiddenWord);
 							mitigateSpam(fmt::format("Verwendung eines verbotenen Wortes: `{}`", forbiddenWord), 660, false);
+							// send feedback message
+							bot.message_create(
+									dpp::message()
+											.set_channel_id(event.msg.channel_id)
+											.add_embed(
+													dpp::embed()
+													.set_description("**Grund:** Verwendung eines verbotenen Wortes")
+													.set_author(fmt::format("{} wurde gewarnt", event.msg.author.format_username()),
+																"",
+																event.msg.author.get_avatar_url()
+											)
+									)
+							);
 							return;
 						}
 					}
@@ -782,7 +795,22 @@ int main() {
 							s += "\nCode: _" + invite.code + "_";
 							embed.add_field("Einladungs details", s);
 						}
+						// log
 						bot.execute_webhook(dpp::webhook(config["log-webhook-url"]), dpp::message().add_embed(embed));
+						// send feedback message
+						bot.message_create(
+								dpp::message()
+										.set_channel_id(msg.channel_id)
+										.add_embed(
+												dpp::embed()
+												.set_description("**Grund:** Einladung gepostet")
+												.set_author(fmt::format("{} wurde gewarnt", msg.author.format_username()),
+															"",
+															msg.author.get_avatar_url()
+										)
+								)
+						);
+
 						deleteUserMessages(msg.author.id);
 					};
 					if (!e.is_error()) {
