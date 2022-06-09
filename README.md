@@ -1,8 +1,8 @@
 # Antispambot
 
 [![Codacy Badge](https://app.codacy.com/project/badge/Grade/9804970630774ee6b62a900404df2c04)](https://www.codacy.com/gh/Commandserver/Antispambot/dashboard?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=Commandserver/Antispambot&amp;utm_campaign=Badge_Grade)
-![Lines of code](https://img.shields.io/tokei/lines/github/Commandserver/Antispambot)
-![GitHub](https://img.shields.io/github/license/Commandserver/Antispambot)
+![Lines of code](https://img.shields.io/tokei/lines/github/Commandserver/Antispambot) 
+![GitHub](https://img.shields.io/github/license/Commandserver/Antispambot) 
 
 **An efficient Discord Bot to prevent spam** written in C++. Tested on a large discord server and mitigates around 90% spam. Its well commented and can be easily adapt according to your needs.
 
@@ -60,7 +60,7 @@ The bot creates discord slash commands to manage the above three _.txt_-configs,
 
 The bot requires the **message content** and **server members** intent to be enabled!
 Add the bot with the `bot` and `applications.commands` scope to your server!
-The bot needs the following permissions: `VIEW_CHANNEL`, `SEND_MESSAGES`, `MANAGE_MESSAGES`, `MANAGE_THREADS`, `MODERATE_MEMBERS`.
+The bot needs at least the following permissions: `VIEW_CHANNEL`, `SEND_MESSAGES`, `MANAGE_MESSAGES`, `MANAGE_THREADS`, `MODERATE_MEMBERS`.
 
 I'd recommend running the bot with systemd, to keep the bot always online.
 
