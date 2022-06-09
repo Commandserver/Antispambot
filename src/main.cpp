@@ -160,7 +160,7 @@ int main() {
 			dpp::embed embed;
 			embed.set_color(0xff0000);
 			embed.set_timestamp(first_join);
-			embed.set_title(fmt::format(":o: Raid erkannt mit {} Usern", fast_joined_members.count()));
+			embed.set_title(fmt::format(":o: Raid erkannt mit {} Usern @here", fast_joined_members.count()));
 			dpp::guild_member *firstUser;
 			dpp::guild_member *lastUser;
 			string memberStr;
@@ -185,6 +185,7 @@ int main() {
 			embed.add_field("Letzter User", fmt::format("Benutzer: {}\nGejoint: {}\n\u200b", lastUser->get_mention(), dpp::utility::timestamp(lastUser->joined_at, dpp::utility::tf_long_time)), true);
 			embed.set_description(memberStr);
 			dpp::message msg;
+			msg.allowed_mentions.parse_everyone = true;
 			msg.channel_id = config["log-channel-id"];
 			msg.add_embed(embed);
 			bot.message_create(msg, [&log](const dpp::confirmation_callback_t &c) {
