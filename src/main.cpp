@@ -797,19 +797,6 @@ int main() {
 						}
 						// log
 						bot.execute_webhook(dpp::webhook(config["log-webhook-url"]), dpp::message().add_embed(embed));
-						// send feedback message
-						bot.message_create(
-								dpp::message()
-										.set_channel_id(msg.channel_id)
-										.add_embed(
-												dpp::embed()
-												.set_description("**Grund:** Einladung gepostet")
-												.set_author(fmt::format("{} wurde gewarnt", msg.author.format_username()),
-															"",
-															msg.author.get_avatar_url()
-										)
-								)
-						);
 
 						deleteUserMessages(msg.author.id);
 					};
