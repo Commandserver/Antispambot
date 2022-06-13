@@ -183,7 +183,7 @@ int main() {
 			dpp::embed embed;
 			embed.set_color(0xff0000);
 			embed.set_timestamp(first_join);
-			embed.set_title(fmt::format(":o: Raid erkannt mit {} Usern @here", fast_joined_members.count()));
+			embed.set_title(fmt::format(":o: Raid erkannt mit {} Usern @everyone", fast_joined_members.count()));
 			dpp::guild_member *firstUser;
 			dpp::guild_member *lastUser;
 			std::string memberStr;
