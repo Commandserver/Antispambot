@@ -2,15 +2,13 @@
 #include <dpp/dpp.h>
 #include <dpp/nlohmann/json.hpp>
 
-using namespace std;
-
 /**
  * editable json config handler
  */
 class JsonFile {
 private:
-	string file;
-	shared_mutex file_mutex;
+	std::string file;
+	std::shared_mutex file_mutex;
 
 public:
 	json content;
@@ -18,7 +16,7 @@ public:
 	/**
 	 * @param file The json-file.
 	 */
-	JsonFile(const string &file);
+	JsonFile(const std::string &file);
 
 	/**
 	 * @brief Return the cache's locking mutex.
@@ -31,7 +29,7 @@ public:
 	 *
 	 * @return The mutex used to protect the container
 	 */
-	shared_mutex &get_mutex();
+	std::shared_mutex &get_mutex();
 
 	/**
 	 * Write the content into the file

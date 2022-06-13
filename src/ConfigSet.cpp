@@ -1,9 +1,9 @@
 #include "ConfigSet.h"
 
-ConfigSet::ConfigSet(const basic_string<char> &file) {
+ConfigSet::ConfigSet(const std::basic_string<char> &file) {
 	this->file = file;
-	unique_lock l(mutex);
-	ifstream i;
+	std::unique_lock l(mutex);
+	std::ifstream i;
 	i.open(file);
 
 	std::string line;
@@ -13,37 +13,37 @@ ConfigSet::ConfigSet(const basic_string<char> &file) {
 	i.close();
 }
 
-void ConfigSet::insert(const basic_string<char> &s) {
-	unique_lock l(mutex);
+void ConfigSet::insert(const std::basic_string<char> &s) {
+	std::unique_lock l(mutex);
 	list.insert(s);
 }
 
-bool ConfigSet::contains(const basic_string<char> &s) {
-	shared_lock l(mutex);
+bool ConfigSet::contains(const std::basic_string<char> &s) {
+	std::shared_lock l(mutex);
 	return list.find(s) != list.end();
 }
 
-void ConfigSet::remove(const basic_string<char> &s) {
-	unique_lock l(mutex);
+void ConfigSet::remove(const std::basic_string<char> &s) {
+	std::unique_lock l(mutex);
 	list.erase(s);
 }
 
-set<string> &ConfigSet::get_container() {
+std::set<std::string> &ConfigSet::get_container() {
 	return list;
 }
 
-shared_mutex &ConfigSet::get_mutex() {
+std::shared_mutex &ConfigSet::get_mutex() {
 	return mutex;
 }
 
 void ConfigSet::save() {
-	unique_lock l(mutex);
-	ofstream f;
+	std::unique_lock l(mutex);
+	std::ofstream f;
 	f.open(file);
 
 	if (f.is_open()) {
 		for (auto &s: list) {
-			f << s << endl;
+			f << s << std::endl;
 		}
 		f.close();
 	}

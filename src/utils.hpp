@@ -1,12 +1,11 @@
+#pragma once
 #include <dpp/dpp.h>
-
-using namespace std;
 
 /**
  * Case Sensitive Implementation of endsWith()
  * It checks if the string 'mainStr' ends with given string 'toMatch'
  */
-bool endsWith(const string &mainStr, const string &toMatch) {
+bool endsWith(const std::string &mainStr, const std::string &toMatch) {
 	if (mainStr.size() >= toMatch.size() &&
 		mainStr.compare(mainStr.size() - toMatch.size(), toMatch.size(), toMatch) == 0)
 		return true;
@@ -20,7 +19,7 @@ bool endsWith(const string &mainStr, const string &toMatch) {
  * @param seconds The amount of seconds to create a time-string for
  * @return The formatted time-string
  */
-string stringifySeconds(uint32_t seconds) {
+std::string stringifySeconds(uint32_t seconds) {
 	uint32_t days = 0, hours = 0, minutes = 0;
 
 	while (seconds >= 86400) {
@@ -36,26 +35,26 @@ string stringifySeconds(uint32_t seconds) {
 		minutes++;
 	}
 
-	string result;
+	std::string result;
 	if (days == 1) {
-		result += to_string(days) + " Tag ";
+		result += std::to_string(days) + " Tag ";
 	} else if (days > 1) {
-		result += to_string(days) + " Tage ";
+		result += std::to_string(days) + " Tage ";
 	}
 	if (hours == 1) {
-		result += to_string(hours) + " Stunde ";
+		result += std::to_string(hours) + " Stunde ";
 	} else if (hours > 1) {
-		result += to_string(hours) + " Stunden ";
+		result += std::to_string(hours) + " Stunden ";
 	}
 	if (minutes == 1) {
-		result += to_string(minutes) + " Minute ";
+		result += std::to_string(minutes) + " Minute ";
 	} else if (minutes > 1) {
-		result += to_string(minutes) + " Minuten ";
+		result += std::to_string(minutes) + " Minuten ";
 	}
 	if (seconds == 1) {
-		result += to_string(seconds) + " Sekunde ";
+		result += std::to_string(seconds) + " Sekunde ";
 	} else if (seconds > 1) {
-		result += to_string(seconds) + " Sekunden ";
+		result += std::to_string(seconds) + " Sekunden ";
 	}
 	return result.erase(result.find_last_not_of(' ') + 1); // remove the ending space
 }
