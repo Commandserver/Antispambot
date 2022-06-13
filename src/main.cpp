@@ -14,6 +14,8 @@
 #include "ConfigSet.h"
 #include "CachedGuildMember.h"
 #include "commands/slashcommands.hpp"
+#include "commands/info.hpp"
+#include "JsonFile.h"
 
 #define DAY 86400 /// amount of seconds of a day
 
@@ -77,6 +79,8 @@ int main() {
 	ConfigSet bypassConfig("../bypass-config.txt");
 	ConfigSet domainBlacklist("../domain-blacklist.txt");
 	ConfigSet forbiddenWords("../bad-words.txt");
+
+	JsonFile muteCounter("../counter.json"); /// Mute counter
 
 
 	bot.on_ready([&bot, &config](const dpp::ready_t &event) {
@@ -273,7 +277,7 @@ int main() {
 	 * @param guildId
 	 * @param userId
 	 */
-	function muteMember = [&bot](const uint32_t muteDuration, const dpp::snowflake guildId, const dpp::snowflake userId) {
+	function muteMember = [&bot, &muteCounter](const uint32_t muteDuration, const dpp::snowflake guildId, const dpp::snowflake userId) {
 		try { // timeout member
 			auto member = dpp::find_guild_member(guildId, userId);
 			time_t muteUntil = time(nullptr) + muteDuration;
@@ -289,6 +293,13 @@ int main() {
 			}
 		} catch (dpp::cache_exception &exception) {
 			bot.log(dpp::ll_error, "couldn't find user " + to_string(userId) + " in cache");
+		}
+		{ // count mute
+			{
+				unique_lock l(muteCounter.get_mutex());
+				muteCounter.content.push_back(time(nullptr));
+			}
+			muteCounter.save();
 		}
 	};
 
@@ -824,7 +835,7 @@ int main() {
 		}
     });
 
-	bot.on_slashcommand([&domainBlacklist, &forbiddenWords, &bypassConfig](const dpp::slashcommand_t &event) {
+	bot.on_slashcommand([&domainBlacklist, &forbiddenWords, &bypassConfig, &bot, &muteCounter](const dpp::slashcommand_t &event) {
 		dpp::command_interaction cmd_data = get<dpp::command_interaction>(event.command.data);
 		/* Check which command they ran */
 		if (cmd_data.name == "manage" and !cmd_data.options.empty() and !cmd_data.options[0].options.empty()) {
@@ -966,6 +977,8 @@ int main() {
 					}
 				}
 			}
+		} else if (cmd_data.name == "info") {
+			handle_info(bot, event, muteCounter);
 		}
 	});
 

@@ -14,9 +14,12 @@ add_executable(${PROJECT_NAME}
         src/utils.hpp
         src/ConfigSet.cpp
         src/ConfigSet.h
+        src/JsonFile.cpp
+        src/JsonFile.h
         src/CachedGuildMember.cpp
         src/CachedGuildMember.h
         src/commands/slashcommands.hpp
+        src/commands/info.hpp
         )
 
 # Linking libraries

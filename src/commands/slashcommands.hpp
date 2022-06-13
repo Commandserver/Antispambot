@@ -9,12 +9,15 @@ namespace commands {
 	 * Create all guild slash commands
 	 */
 	void createAll(dpp::cluster &bot, nlohmann::json &config) {
-		dpp::slashcommand m;
-		m.set_name("manage");
-		m.set_description("Bot Einstellungen");
-		m.set_default_permissions(0);
+		std::vector<dpp::slashcommand> commands;
 
-		m.add_option(dpp::command_option(dpp::co_sub_command_group, "domainblacklist", "Verwalte verbotene Domains")
+		dpp::slashcommand manage;
+		manage.set_type(dpp::ctxm_chat_input);
+		manage.set_name("manage");
+		manage.set_description("Bot Einstellungen");
+		manage.set_default_permissions(0);
+
+		manage.add_option(dpp::command_option(dpp::co_sub_command_group, "domainblacklist", "Verwalte verbotene Domains")
 							 .add_option(dpp::command_option(dpp::co_sub_command, "add",
 															 "Füge eine Domain der Blacklist hinzu")
 												 .add_option(dpp::command_option(dpp::co_string, "domain",
@@ -28,7 +31,7 @@ namespace commands {
 																				 true))
 							 )
 		);
-		m.add_option(dpp::command_option(dpp::co_sub_command_group, "forbiddenwords", "Verwalte verbotene Wörter")
+		manage.add_option(dpp::command_option(dpp::co_sub_command_group, "forbiddenwords", "Verwalte verbotene Wörter")
 							 .add_option(dpp::command_option(dpp::co_sub_command, "add",
 															 "Verbiete ein Wort")
 												 .add_option(dpp::command_option(dpp::co_string, "word",
@@ -42,8 +45,8 @@ namespace commands {
 																				 true))
 							 )
 		);
-		m.add_option(dpp::command_option(dpp::co_sub_command_group, "bypass",
-										 "Verwalte Rollen und User die von den Anti-Spam-Maßnahmen ausgeschlossen sind")
+		manage.add_option(dpp::command_option(dpp::co_sub_command_group, "bypass",
+											  "Verwalte Rollen und User die von den Anti-Spam-Maßnahmen ausgeschlossen sind")
 							 .add_option(dpp::command_option(dpp::co_sub_command, "list",
 															 "Liste all Rollen und User auf die vom Anti-Spam-System ausgeschlossen sind")
 							 )
@@ -58,8 +61,15 @@ namespace commands {
 																				 "Rolle oder User", true))
 							 )
 		);
+		commands.push_back(manage);
 
-		bot.guild_command_create(m, config["guild-id"], [&bot](const dpp::confirmation_callback_t &event) {
+		dpp::slashcommand info;
+		info.set_type(dpp::ctxm_chat_input);
+		info.set_name("info");
+		info.set_description("Information about this bot");
+		commands.push_back(info);
+
+		bot.guild_bulk_command_create(commands, config["guild-id"], [&bot](const dpp::confirmation_callback_t &event) {
 			if (event.is_error()) {
 				bot.log(dpp::ll_error, "error creating slash commands: " + event.http_info.body);
 			} else {
