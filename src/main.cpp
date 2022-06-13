@@ -831,6 +831,7 @@ int main() {
 
 					if (domainBlacklist.contains(domain)) {
 						event.reply(dpp::message("`" + domain + "` is on the blacklist already").set_flags(dpp::m_ephemeral));
+						return;
 					}
 
 					domainBlacklist.insert(domain);
@@ -852,6 +853,7 @@ int main() {
 
 					if (!domainBlacklist.contains(domain)) {
 						event.reply(dpp::message("`" + domain + "` is not blacklisted").set_flags(dpp::m_ephemeral));
+						return;
 					}
 
 					domainBlacklist.remove(domain);
@@ -866,6 +868,7 @@ int main() {
 
 					if (forbiddenWords.contains(word)) {
 						event.reply(dpp::message("`" + word + "` is on the bad-words-list already").set_flags(dpp::m_ephemeral));
+						return;
 					}
 
 					forbiddenWords.insert(word);
@@ -878,6 +881,7 @@ int main() {
 
 					if (!forbiddenWords.contains(word)) {
 						event.reply(dpp::message("`" + word + "` is not in the bad-words-list").set_flags(dpp::m_ephemeral));
+						return;
 					}
 
 					forbiddenWords.remove(word);
