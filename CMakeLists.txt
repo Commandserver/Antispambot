@@ -16,7 +16,8 @@ add_executable(${PROJECT_NAME}
         src/ConfigSet.h
         src/CachedGuildMember.cpp
         src/CachedGuildMember.h
-        src/commands/slashcommands.hpp
+        src/commands/info.hpp
+        src/commands/manage.hpp
         )
 
 # Linking libraries
