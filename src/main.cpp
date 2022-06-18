@@ -308,7 +308,6 @@ int main() {
 						bot.log(dpp::ll_info, "timed out " + std::to_string(userId));
 					}
 				});
-				bot.clear_audit_reason();
 			}
 		} catch (dpp::cache_exception &exception) {
 			bot.log(dpp::ll_error, "couldn't find user " + std::to_string(userId) + " in cache");
