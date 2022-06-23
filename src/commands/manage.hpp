@@ -43,7 +43,7 @@ dpp::slashcommand definition_manage() {
 }
 
 void handle_manage(dpp::cluster& bot, const dpp::slashcommand_t& event, ConfigSet& domainBlacklist, ConfigSet& forbiddenWords, ConfigSet& bypassConfig) {
-	dpp::command_interaction cmd_data = std::get<dpp::command_interaction>(event.command.data);
+	dpp::command_interaction cmd_data = event.command.get_command_interaction();
 
 	if (cmd_data.options[0].name == "domainblacklist" and !cmd_data.options[0].options[0].options.empty()) {
 		if (cmd_data.options[0].options[0].name == "add") {

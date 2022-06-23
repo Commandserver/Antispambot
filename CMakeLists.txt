@@ -14,12 +14,14 @@ add_executable(${PROJECT_NAME}
         src/utils.hpp
         src/ConfigSet.cpp
         src/ConfigSet.h
+        src/ConfirmationHandler.hpp
         src/JsonFile.cpp
         src/JsonFile.h
         src/CachedGuildMember.cpp
         src/CachedGuildMember.h
         src/commands/info.hpp
         src/commands/manage.hpp
+        src/commands/massban.hpp
         )
 
 # Linking libraries

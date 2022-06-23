@@ -15,8 +15,11 @@
 #include "JsonFile.h"
 #include "CachedGuildMember.h"
 
+#include "ConfirmationHandler.hpp"
+
 #include "commands/info.hpp"
 #include "commands/manage.hpp"
+#include "commands/massban.hpp"
 
 #define DAY 86400 /// amount of seconds of a day
 
@@ -89,6 +92,7 @@ int main() {
 			std::vector<dpp::slashcommand> commands = {
 					definition_info(),
 					definition_manage(),
+					definition_massban(),
 			};
 
 			bot.guild_bulk_command_create(commands, config["guild-id"], [&bot](const dpp::confirmation_callback_t &event) {
@@ -107,7 +111,14 @@ int main() {
 			handle_manage(bot, event, domainBlacklist, forbiddenWords, bypassConfig);
 		} else if (event.command.get_command_name() == "info") {
 			handle_info(bot, event, muteCounter);
+		} else if (event.command.get_command_name() == "massban") {
+			handle_massban(bot, event);
 		}
+	});
+
+
+	bot.on_button_click([](const dpp::button_click_t &event) {
+		callComponent(event, event.custom_id);
 	});
 
 
