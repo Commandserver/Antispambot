@@ -118,7 +118,7 @@ int main() {
 
 
 	bot.on_button_click([](const dpp::button_click_t &event) {
-		callComponent(event, event.custom_id);
+		callComponent(event);
 	});
 
 
