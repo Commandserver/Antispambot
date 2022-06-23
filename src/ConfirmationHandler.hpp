@@ -1,6 +1,9 @@
 #pragma once
 #include <dpp/dpp.h>
 
+/**
+ * Holds the callback for a stored component which will be executed when e.g. a button got clicked
+ */
 struct ComponentContainer {
 	std::function<void(const dpp::button_click_t &)> function;
 	time_t created_at;
@@ -16,6 +19,11 @@ uint64_t cachedActionsCounter = 0;
 std::shared_mutex cachedActionsMutex;
 
 
+/**
+ * Set a callback to respond to a component
+ * @param component component to execute the function for when its triggered
+ * @param function callback to execute when the component got triggered
+ */
 void bindComponentAction(dpp::component &component, const std::function<void(const dpp::button_click_t &)>& function) {
 	std::unique_lock l(cachedActionsMutex);
 
@@ -50,13 +58,17 @@ void bindComponentAction(dpp::component &component, const std::function<void(con
 	}
 }
 
-void callComponent(const dpp::button_click_t &event, const std::string &custom_id) {
+/**
+ * call this in cluster::on_button_click
+ * @param event the dpp::button_click_t event
+ */
+void callComponent(const dpp::button_click_t &event) {
 	std::shared_lock l(cachedActionsMutex);
 
-	auto existing = cachedActions.find(custom_id);
+	auto existing = cachedActions.find(event.custom_id);
 
 	if (existing != cachedActions.end()) {
-		std::cout << "call component callback with custom_id: " << custom_id << std::endl;
+		std::cout << "call component callback with custom_id: " << event.custom_id << std::endl;
 		existing->second.function(event);
 	}
 }
