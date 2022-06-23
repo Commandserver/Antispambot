@@ -34,7 +34,7 @@ void bindComponentAction(dpp::component &component, const std::function<void(con
 		while (it != cachedActions.end()) {
 
 			ComponentContainer container = it->second;
-			const bool deleteEntry = difftime(time(nullptr), container.created_at) > 60 * 2;
+			const bool deleteEntry = difftime(time(nullptr), container.created_at) > 60 * 2; // if older than 2 minutes
 
 			if (deleteEntry){
 				assert(!cachedActions.empty());
