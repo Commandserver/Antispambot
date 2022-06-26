@@ -180,7 +180,7 @@ int main() {
 			dpp::embed embed;
 			embed.set_color(0xff0000);
 			embed.set_timestamp(first_join);
-			embed.set_title(fmt::format(":o: Raid detected with {} Users @everyone", fast_joined_members.count()));
+			embed.set_title(fmt::format(":o: Raid detected with {} Users", fast_joined_members.count()));
 			dpp::guild_member *firstUser;
 			dpp::guild_member *lastUser;
 			std::string memberStr;
@@ -204,7 +204,7 @@ int main() {
 			embed.add_field("First user", fmt::format("User: {}\nJoined: {}\n\u200b", firstUser->get_mention(), dpp::utility::timestamp(firstUser->joined_at, dpp::utility::tf_long_time)), true);
 			embed.add_field("Last user", fmt::format("User: {}\nJoined: {}\n\u200b", lastUser->get_mention(), dpp::utility::timestamp(lastUser->joined_at, dpp::utility::tf_long_time)), true);
 			embed.set_description(memberStr);
-			dpp::message msg;
+			dpp::message msg("@everyone");
 			msg.allowed_mentions.parse_everyone = true;
 			msg.channel_id = config["log-channel-id"];
 			msg.add_embed(embed);
