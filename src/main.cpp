@@ -272,10 +272,10 @@ int main() {
 				}
 			}
 
-			/* when more than 12 members joined in the past 60 seconds
-			 * you can adjust this number depending on your guild-size. I think 12 should be enough
+			/* when more than 10 members joined in the past 60 seconds
+			 * you can adjust this number depending on your guild-size. I think 10 should be enough
 			 */
-			if (fast_joined_member_count >= 12) {
+			if (fast_joined_member_count >= 10) {
 				if (!first_join) {
 					first_join = time(nullptr);
 				}
