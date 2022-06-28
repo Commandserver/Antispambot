@@ -96,8 +96,7 @@ void handle_massban(dpp::cluster& bot, const dpp::slashcommand_t& event) {
 		auto confirm_component = dpp::component()
 				.set_label("Ban")
 				.set_type(dpp::cot_button)
-				.set_style(dpp::cos_danger)
-				.set_id("confirm");
+				.set_style(dpp::cos_danger);
 
 		bindComponentAction(confirm_component, [&bot, users_to_ban](const dpp::button_click_t &event) {
 			event.reply(
@@ -109,8 +108,7 @@ void handle_massban(dpp::cluster& bot, const dpp::slashcommand_t& event) {
 		auto cancel_confirm = dpp::component()
 				.set_label("Cancel")
 				.set_type(dpp::cot_button)
-				.set_style(dpp::cos_secondary)
-				.set_id("cancel");
+				.set_style(dpp::cos_secondary);
 
 		bindComponentAction(cancel_confirm, [](const dpp::button_click_t &event) {
 			event.reply(

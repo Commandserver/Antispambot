@@ -28,17 +28,13 @@ void bindComponentAction(dpp::component &component, const std::function<void(con
 
 	// remove too old ones
 	auto it = cachedActions.begin();
-
 	while (it != cachedActions.end()) {
+		const bool deleteEntry = difftime(time(nullptr), it->second.created_at) > 60 * 10; // if older than 10 minutes
 
-		ComponentContainer container = it->second;
-		const bool deleteEntry = difftime(time(nullptr), container.created_at) > 60 * 2; // if older than 2 minutes
-
-		if (deleteEntry){
+		if (deleteEntry) {
 			assert(!cachedActions.empty());
 			it = cachedActions.erase(it);  // <-- Return value should be a valid iterator.
-		}
-		else{
+		} else {
 			++it;  // Have to manually increment.
 		}
 	}
