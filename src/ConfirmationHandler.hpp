@@ -19,7 +19,7 @@ std::shared_mutex cachedActionsMutex;
 
 
 /**
- * Set a callback to respond to a component. The function will set its own custom_id to the component!
+ * Set a callback to respond to a component. The function will overwrite the custom_id of the component!
  * @param component component to execute the function for when its triggered
  * @param function callback to execute when the component got triggered
  */
@@ -44,15 +44,15 @@ void bindComponentAction(dpp::component &component, const std::function<void(con
 		std::random_device rd;
 		std::mt19937_64 gen(rd());
 		std::uniform_int_distribution<uint64_t> dis;
-		uint64_t r = dis(gen);
+		uint64_t custom_id = dis(gen);
 
-		auto existing = cachedActions.find(r);
+		auto existing = cachedActions.find(custom_id);
 		if (existing == cachedActions.end()) {
-			component.custom_id = std::to_string(r); // overwrite the custom_id from the given component
+			component.custom_id = std::to_string(custom_id); // overwrite the custom_id from the given component
 
 			ComponentContainer container;
 			container.function = function;
-			cachedActions[r] = container;
+			cachedActions[custom_id] = container;
 			break;
 		}
 	}
