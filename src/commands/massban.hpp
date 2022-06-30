@@ -138,13 +138,22 @@ void handle_massban(dpp::cluster& bot, const dpp::slashcommand_t& event) {
 				);
 				bot.message_create_sync(m);
 				// send a file containing all banned user ids
+				auto filesMsg = dpp::message().set_channel_id(channel_id);
 				if (!success.empty()) {
-					std::string bans;
+					std::string users;
 					for (const auto &id: success) {
-						bans += fmt::format("{}\n", id);
+						users += fmt::format("{}\n", id);
 					}
-					bot.message_create_sync(dpp::message().set_channel_id(channel_id).add_file("banned-users.txt", bans));
+					filesMsg.add_file("banned-users.txt", users);
 				}
+				if (!failures.empty()) {
+					std::string users;
+					for (const auto &id: failures) {
+						users += fmt::format("{}\n", id);
+					}
+					filesMsg.add_file("failed-users.txt", users);
+				}
+				bot.message_create_sync(filesMsg);
 			});
 			t.detach();
 		});
