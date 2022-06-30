@@ -8,8 +8,9 @@
 struct ComponentContainer {
 	std::function<void(const dpp::button_click_t &)> function;
 	time_t created_at;
+	bool only_one;
 
-	ComponentContainer() : created_at(time(nullptr)) {}
+	ComponentContainer() : created_at(time(nullptr)), only_one(true) {}
 };
 
 
@@ -22,8 +23,9 @@ std::shared_mutex cachedActionsMutex;
  * Set a callback to respond to a component. The function will overwrite the custom_id of the component!
  * @param component component to execute the function for when its triggered
  * @param function callback to execute when the component got triggered
+ * @param only_one If true, the callback will be called only once
  */
-void bindComponentAction(dpp::component &component, const std::function<void(const dpp::button_click_t &)>& function) {
+void bindComponentAction(dpp::component &component, const std::function<void(const dpp::button_click_t &)>& function, bool only_one = true) {
 	std::unique_lock l(cachedActionsMutex);
 
 	// remove too old ones
@@ -52,6 +54,7 @@ void bindComponentAction(dpp::component &component, const std::function<void(con
 
 			ComponentContainer container;
 			container.function = function;
+			container.only_one = only_one;
 			cachedActions[custom_id] = container;
 			break;
 		}
@@ -63,13 +66,16 @@ void bindComponentAction(dpp::component &component, const std::function<void(con
  * @param event the dpp::button_click_t event
  */
 void callComponent(const dpp::button_click_t &event) {
-	std::shared_lock l(cachedActionsMutex);
+	std::unique_lock l(cachedActionsMutex);
 
 	auto existing = cachedActions.find(std::stoull(event.custom_id));
 
 	if (existing != cachedActions.end()) {
 		std::cout << "call component callback with custom_id: " << event.custom_id << std::endl;
 		existing->second.function(event);
+		if (existing->second.only_one) {
+			cachedActions.erase(existing);
+		}
 	}
 }
 
