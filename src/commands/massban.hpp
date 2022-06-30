@@ -65,35 +65,29 @@ void handle_massban(dpp::cluster& bot, const dpp::slashcommand_t& event) {
 	{
 		// create response
 		std::string description;
-
 		bool interactionAlreadyAcknowledged = false;
+
+		std::function<void()> send = [&](){
+			dpp::message m = dpp::message().add_embed(dpp::embed().set_description(description).set_title("Username | Account creation"));
+			if (interactionAlreadyAcknowledged) {
+				bot.message_create(m.set_channel_id(event.command.channel_id));
+			} else {
+				interactionAlreadyAcknowledged = true;
+				event.reply(m);
+			}
+			description = "";
+		};
 		for (const dpp::snowflake& id : users_to_ban) {
 			const dpp::managed managedObj(id);
 			std::string s_to_add = fmt::format("<@{}> {}\n", id, dpp::utility::timestamp((time_t)managedObj.get_creation_time(), dpp::utility::tf_short_datetime));
 
 			// make sure to not exceed message limits
-			if (description.size() + s_to_add.size() > 4020) {
-				dpp::message m = dpp::message().add_embed(dpp::embed().set_description(description).set_title("Username | Account creation"));
-				if (interactionAlreadyAcknowledged) {
-					bot.message_create(m.set_channel_id(event.command.channel_id));
-				} else {
-					interactionAlreadyAcknowledged = true;
-					event.reply(m);
-				}
-				description = "";
+			if (description.size() + s_to_add.size() > 4000) {
+				send();
 			}
 			description += s_to_add;
 		}
-
-		dpp::message m = dpp::message().add_embed(dpp::embed().set_description(description).set_title("Username | Account creation"));
-		if (interactionAlreadyAcknowledged) {
-			bot.message_create(m.set_channel_id(event.command.channel_id));
-		} else {
-			interactionAlreadyAcknowledged = true;
-			event.reply(m);
-		}
-		description = "";
-
+		send();
 	}
 
 	{
@@ -143,6 +137,14 @@ void handle_massban(dpp::cluster& bot, const dpp::slashcommand_t& event) {
 									.add_field("failures", fmt::format("**{}**\n{}", failures.size(), failures_mentions), true)
 				);
 				bot.message_create_sync(m);
+				// send a file containing all banned user ids
+				if (!success.empty()) {
+					std::string bans;
+					for (const auto &id: success) {
+						bans += fmt::format("{}\n", id);
+					}
+					bot.message_create_sync(dpp::message().set_channel_id(channel_id).add_file("banned-users.txt", bans));
+				}
 			});
 			t.detach();
 		});
