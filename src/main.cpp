@@ -180,7 +180,7 @@ int main() {
 			dpp::embed embed;
 			embed.set_color(0xff0000);
 			embed.set_timestamp(first_join);
-			embed.set_title(fmt::format(":o: Raid detected with {} Users @everyone", fast_joined_members.count()));
+			embed.set_title(fmt::format(":o: Raid detected with {} Users", fast_joined_members.count()));
 			dpp::guild_member *firstUser;
 			dpp::guild_member *lastUser;
 			std::string memberStr;
@@ -204,7 +204,7 @@ int main() {
 			embed.add_field("First user", fmt::format("User: {}\nJoined: {}\n\u200b", firstUser->get_mention(), dpp::utility::timestamp(firstUser->joined_at, dpp::utility::tf_long_time)), true);
 			embed.add_field("Last user", fmt::format("User: {}\nJoined: {}\n\u200b", lastUser->get_mention(), dpp::utility::timestamp(lastUser->joined_at, dpp::utility::tf_long_time)), true);
 			embed.set_description(memberStr);
-			dpp::message msg;
+			dpp::message msg("@everyone");
 			msg.allowed_mentions.parse_everyone = true;
 			msg.channel_id = config["log-channel-id"];
 			msg.add_embed(embed);
@@ -258,10 +258,10 @@ int main() {
 				}
 			}
 
-			/* when more than 12 members joined in the past 60 seconds
-			 * you can adjust this number depending on your guild-size. I think 12 should be enough
+			/* when more than 10 members joined in the past 60 seconds
+			 * you can adjust this number depending on your guild-size. I think 10 should be enough
 			 */
-			if (fast_joined_member_count >= 12) {
+			if (fast_joined_member_count >= 10) {
 				if (!first_join) {
 					first_join = time(nullptr);
 				}
@@ -435,7 +435,7 @@ int main() {
 			dpp::embed embed; // create the embed log message
 			embed.set_color(0xefa226);
 			embed.set_timestamp(time(nullptr));
-			embed.set_description(":warning: Spam detected by " + event.msg.author.get_mention());
+			embed.set_description(fmt::format(":warning: Spam detected by {} ({})", event.msg.author.get_mention(), event.msg.author.format_username()));
 			embed.add_field("Reason", reason, true);
 			embed.add_field("Channel", fmt::format("<#{}>", event.msg.channel_id), true);
 			if (!event.msg.content.empty()) {
@@ -583,7 +583,7 @@ int main() {
 		}
 
 		// too many mentions
-		if (event.msg.mentions.size() > 8) {
+		if (event.msg.mentions.size() > 6) {
 			log->debug("too many mentions in one message");
 			mitigateSpam("Mass ping", DAY * 14, false);
 			return;
