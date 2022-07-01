@@ -450,7 +450,7 @@ int main() {
 			dpp::embed embed; // create the embed log message
 			embed.set_color(0xefa226);
 			embed.set_timestamp(time(nullptr));
-			embed.set_description(":warning: Spam erkannt von " + event.msg.author.get_mention());
+			embed.set_description(fmt::format(":warning: Spam erkannt von {} ({})", event.msg.author.get_mention(), event.msg.author.format_username()));
 			embed.add_field("Grund", reason, true);
 			embed.add_field("Channel", fmt::format("<#{}>", event.msg.channel_id), true);
 			if (!event.msg.content.empty()) {
@@ -611,7 +611,7 @@ int main() {
 		}
 
 		// too many mentions
-		if (event.msg.mentions.size() > 8) {
+		if (event.msg.mentions.size() > 6) {
 			log->debug("too many mentions in one message");
 			mitigateSpam("Massen erwähnung", DAY * 14, false);
 			return;
@@ -776,7 +776,7 @@ int main() {
 			return;
 		}
 
-		if (mention_count > 20) {
+		if (mention_count > 18) {
 			log->debug("too many mentions in multiple messages");
 			mitigateSpam("Massen erwähnung durch mehrere Nachrichten", DAY * 27, true);
 			return;
