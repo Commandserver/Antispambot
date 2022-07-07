@@ -4,7 +4,7 @@
 ![Lines of code](https://img.shields.io/tokei/lines/github/Commandserver/Antispambot) 
 ![GitHub](https://img.shields.io/github/license/Commandserver/Antispambot) 
 
-**An efficient Discord Bot to prevent spam** written in C++. Tested on a large discord server and mitigates around 90% spam. Its well commented and can be easily adapt according to your needs.
+**An efficient Discord Bot to prevent spam** written in C++. Tested on a large discord server and mitigates around 90% of spam. Its well commented and therefor you can easily adapt it according to your needs.
 
 ## Features
 
@@ -80,9 +80,9 @@ Restart=always
 WantedBy=multi-user.target
 ```
 
-## Show your support
+## Supporte me
 
-Be sure to leave a ⭐️ if you like the project and also be sure to contribute, if you're interested! Want to help? Drop me a line or send a PR.
+Be sure to leave a ⭐️ if you like the project :) Thank you!
 
 ## FAQ
 
