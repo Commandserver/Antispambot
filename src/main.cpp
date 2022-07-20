@@ -20,6 +20,7 @@
 
 #define DAY 86400 /// amount of seconds of a day
 
+using namespace std;
 
 int main() {
     /* parse config */
@@ -497,6 +498,61 @@ int main() {
 
 		if (!event.msg.content.empty()) {
 
+			// check repeated phrases
+			if (event.msg.content.find(' ') != std::string::npos) {
+				//std::cout << "contains space" << std::endl;
+
+				vector<string> words = dpp::utility::tokenize(event.msg.content, " ");
+
+#define wordsComboCount 3 // wie viele wörter aneinander gereiht sein müssen
+#define requiredDuplicates 3 // wie viele duplizierte phrasen in der kompletten nachricht sein müssen, das das system anschlägt. 3 heisst die phrase kommt 4 mal vor.
+
+				if (words.size() >= (requiredDuplicates * requiredDuplicates)) { // wenn überhaupt so viele wörter da sind das man das werten kann
+					for (uint32_t i = 0; i < words.size() - (wordsComboCount * (requiredDuplicates - 1)); i++) { // gehe die wörter durch bis zu einem punkt an dem eh keine duplizierungen mehr auftreten können
+
+						vector<string> phrase = {words.at(i), words.at(i + 1), words.at(i + 2)};
+						//cout << "Checking Phrase -> " << phrase[0] << ", " << phrase[1] << ", " << phrase[2] << "" << endl;
+
+						vector<uint32_t> duplicates;
+
+						for (auto it = words.begin() + i + wordsComboCount; it != words.end(); ++it) {
+							if (std::next(it) == words.end() || std::next(std::next(it)) == words.end()) {
+								break;
+							}
+
+							//cout << "checking at word: '" << *it << "' i=" << i << endl;
+							if (*it == phrase[0] && *std::next(it) == phrase[1] && *std::next(std::next(it)) == phrase[2]) { // die drei wörter folgen aufeinander nochmal
+								duplicates.push_back(it - words.begin());
+								it += wordsComboCount - 1;
+							}
+						}
+
+						//cout << "-------- duplicates ---------" << endl;
+						for (const auto& d : duplicates) {
+							//cout << d << endl;
+						}
+						if (duplicates.size() >= requiredDuplicates) {
+							cout << "Repeated phrases detected: " << phrase[0] << " " << phrase[1] << " " << phrase[2] << ", occurrences=" << duplicates.size() + 1 << endl;
+
+							// TODO replace with mitigateSpam()
+							dpp::embed embed;
+							embed.set_timestamp(time(nullptr));
+							embed.set_description("**Debug** by " + event.msg.author.format_username());
+							embed.add_field("Grund",
+											fmt::format("Repeated phrase in message: `{} {} {}`. Occurences: {}", phrase[0], phrase[1], phrase[2], duplicates.size() + 1),
+											true);
+							embed.add_field("Channel", fmt::format("<#{}>", event.msg.channel_id), true);
+							if (!event.msg.content.empty()) {
+								embed.add_field("Originale Nachricht", event.msg.content);
+							}
+							bot.execute_webhook(dpp::webhook(config["log-webhook-url"]), dpp::message().add_embed(embed));
+							break;
+						}
+						//cout << "-------- x-x ---------" << endl;
+					}
+				}
+			}
+
 			// collect discord invitation codes (from urls and raw text)
 			if (event.msg.content.find("discord") != std::string::npos) { // check the validity of the whole string
 				std::smatch match;
@@ -838,7 +894,7 @@ int main() {
 					} else {
 						// unknown or invalid invite
 						bot.log(dpp::ll_debug, "unknown invite detected");
-						mitigateInviteSpam(DAY * 27);
+						mitigateInviteSpam(DAY * 20);
 					}
 				});
 			}
