@@ -500,46 +500,63 @@ int main() {
 
 			// check repeated phrases
 			if (event.msg.content.find(' ') != std::string::npos) {
-				//std::cout << "contains space" << std::endl;
 
 				vector<string> words = dpp::utility::tokenize(event.msg.content, " ");
 
-#define wordsComboCount 3 // wie viele wörter aneinander gereiht sein müssen
-#define requiredDuplicates 3 // wie viele duplizierte phrasen in der kompletten nachricht sein müssen, das das system anschlägt. 3 heisst die phrase kommt 4 mal vor.
+				#define wordsComboCount 4 // wie viele wörter aneinander gereiht sein müssen
+				#define requiredOccurrences 4 // wie viele duplizierte phrasen in der kompletten nachricht sein müssen, das das system anschlägt
 
-				if (words.size() >= (requiredDuplicates * requiredDuplicates)) { // wenn überhaupt so viele wörter da sind das man das werten kann
-					for (uint32_t i = 0; i < words.size() - (wordsComboCount * (requiredDuplicates - 1)); i++) { // gehe die wörter durch bis zu einem punkt an dem eh keine duplizierungen mehr auftreten können
+				if (words.size() >= (wordsComboCount + requiredOccurrences - 1)) { // wenn überhaupt so viele wörter da sind das man das werten kann
 
-						vector<string> phrase = {words.at(i), words.at(i + 1), words.at(i + 2)};
-						//cout << "Checking Phrase -> " << phrase[0] << ", " << phrase[1] << ", " << phrase[2] << "" << endl;
+					for (auto iterator = words.begin(); iterator + (wordsComboCount + requiredOccurrences - 2) != words.end(); ++iterator) { // gehe die wörter durch bis zu einem punkt an dem eh keine duplizierungen mehr auftreten können
 
-						vector<uint32_t> duplicates;
+						std::vector<string*> phrase_to_check;
+						//cout << "Checking phrase: ";
+						for (int i = 0; i < wordsComboCount; i++) {
+							phrase_to_check.push_back(&*(iterator + i));
+							//cout << " " << *(iterator + i) << ", ";
+						}
+						//cout << endl;
 
-						for (auto it = words.begin() + i + wordsComboCount; it != words.end(); ++it) {
-							if (std::next(it) == words.end() || std::next(std::next(it)) == words.end()) {
-								break;
+
+						int occurrences = 0; // amount of found duplicates for current phrase
+
+
+						// durch den rest der wörter loopen und nach der phrase suchen
+						//cout << "\tSeach in: ";
+						for (auto it = iterator + 1; it + wordsComboCount - 1 != words.end(); ++it) {
+							//cout << "  [" << *it << ", " << *(it + 1) << ", " << *(it + 2) << ", " << *(it + 3) << "], ";
+
+							// prüfen ob die phrase der zu suchenden entspricht
+							bool phrase_matches = true;
+							for (int i = 0; i < wordsComboCount; i++) {
+								if (*(it + i) != *(phrase_to_check.at(i))) {
+									phrase_matches = false;
+									break;
+								}
+							}
+							if (phrase_matches) {
+								occurrences++;
 							}
 
-							//cout << "checking at word: '" << *it << "' i=" << i << endl;
-							if (*it == phrase[0] && *std::next(it) == phrase[1] && *std::next(std::next(it)) == phrase[2]) { // die drei wörter folgen aufeinander nochmal
-								duplicates.push_back(it - words.begin());
-								it += wordsComboCount - 1;
+						}
+						//cout << endl << "- " << occurrences << endl;
+
+						if (occurrences >= requiredOccurrences) {
+
+							// build string
+							string phrase;
+							for (int i = 0; i < wordsComboCount; i++) {
+								phrase += *phrase_to_check[i] + (i >= wordsComboCount - 1 ? "" : " ");
 							}
-						}
 
-						//cout << "-------- duplicates ---------" << endl;
-						for (const auto& d : duplicates) {
-							//cout << d << endl;
-						}
-						if (duplicates.size() >= requiredDuplicates) {
-							cout << "Repeated phrases detected: " << phrase[0] << " " << phrase[1] << " " << phrase[2] << ", occurrences=" << duplicates.size() + 1 << endl;
-
+							//cout << "Repeated phrases detected: " << phrase << ", occurrences=" << occurrences << endl;
 							// TODO replace with mitigateSpam()
 							dpp::embed embed;
 							embed.set_timestamp(time(nullptr));
 							embed.set_description("**Debug** by " + event.msg.author.format_username());
 							embed.add_field("Grund",
-											fmt::format("Repeated phrase in message: `{} {} {}`. Occurences: {}", phrase[0], phrase[1], phrase[2], duplicates.size() + 1),
+											fmt::format("Repeated phrase in message:\n`{}`\nOccurrences: {}", phrase, occurrences),
 											true);
 							embed.add_field("Channel", fmt::format("<#{}>", event.msg.channel_id), true);
 							if (!event.msg.content.empty()) {
@@ -548,7 +565,7 @@ int main() {
 							bot.execute_webhook(dpp::webhook(config["log-webhook-url"]), dpp::message().add_embed(embed));
 							break;
 						}
-						//cout << "-------- x-x ---------" << endl;
+
 					}
 				}
 			}
@@ -894,7 +911,7 @@ int main() {
 					} else {
 						// unknown or invalid invite
 						bot.log(dpp::ll_debug, "unknown invite detected");
-						mitigateInviteSpam(DAY * 20);
+						mitigateInviteSpam(DAY * 27);
 					}
 				});
 			}

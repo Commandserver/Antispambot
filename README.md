@@ -16,6 +16,7 @@ The following is considered as spam and will be deleted by the bot:
 * bad words (configurable in `bad-words.txt`)
 * messages that contain blacklisted domains as a url (see `domain-blacklist.txt`)
 * forbidden file extensions like _.exe_ (configurable)
+* too many repeated phrases or words
 
 The bot will time out users who spam!
 
