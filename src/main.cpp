@@ -551,19 +551,8 @@ int main() {
 							}
 
 							//cout << "Repeated phrases detected: " << phrase << ", occurrences=" << occurrences << endl;
-							// TODO replace with mitigateSpam()
-							dpp::embed embed;
-							embed.set_timestamp(time(nullptr));
-							embed.set_description("**Debug** by " + event.msg.author.format_username());
-							embed.add_field("Grund",
-											fmt::format("Repeated phrase in message:\n`{}`\nOccurrences: {}", phrase, occurrences),
-											true);
-							embed.add_field("Channel", fmt::format("<#{}>", event.msg.channel_id), true);
-							if (!event.msg.content.empty()) {
-								embed.add_field("Originale Nachricht", event.msg.content);
-							}
-							bot.execute_webhook(dpp::webhook(config["log-webhook-url"]), dpp::message().add_embed(embed));
-							break;
+							mitigateSpam(fmt::format("Repeated phrase in message:\n`{}`\nOccurrences: {}", phrase, occurrences), 1800, true);
+							return;
 						}
 
 					}
