@@ -440,7 +440,7 @@ int main() {
 			dpp::embed embed; // create the embed log message
 			embed.set_color(0xefa226);
 			embed.set_timestamp(time(nullptr));
-			embed.set_description(":warning: Spam erkannt von " + event.msg.author.get_mention());
+			embed.set_description(fmt::format(":warning: Spam erkannt von {} ({})", event.msg.author.get_mention(), event.msg.author.format_username()));
 			embed.add_field("Grund", reason, true);
 			embed.add_field("Channel", fmt::format("<#{}>", event.msg.channel_id), true);
 			if (!event.msg.content.empty()) {
@@ -865,7 +865,7 @@ int main() {
 						dpp::embed embed; // create the embed log message
 						embed.set_color(0xff6600);
 						embed.set_timestamp(time(nullptr));
-						embed.set_description(":warning: Spam erkannt von " + msg.author.get_mention());
+						embed.set_description(fmt::format(":warning: Spam erkannt von {} ({})", msg.author.get_mention(), msg.author.format_username()));
 						embed.add_field("Grund", "Einladung gepostet", true);
 						embed.add_field("Channel", fmt::format("<#{}>", msg.channel_id), true);
 						if (!msg.content.empty()) {
