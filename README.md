@@ -13,7 +13,7 @@ The following is considered as spam and will be deleted by the bot:
 * crossposted messages (repeated messages over too many channels). This also effects fake nitro ads!
 * repeated messages
 * messages with too many mentions
-* bad words (see `bad-words.txt`)
+* bad words (configurable in `bad-words.txt`)
 * messages that contains an url of a blacklisted domain (see `domain-blacklist.txt`)
 * forbidden file extensions like _.exe_ (configurable in `config.json`)
 
@@ -74,7 +74,7 @@ The `bypass-config.txt` can be used to exclude users and roles from getting dete
 
 All forbidden domains are stored in `domain-blacklist.txt`. Used to prevent the sharing of certain websites/urls. You can also add top-level-domains to them.
 
-The above three _.txt_-configs can be managed by the slash command, therefor they're stored in extra files.
+The bot creates discord slash commands to manage the above three _.txt_-configs, therefor they're stored in extra files.
 
 The bot requires the **message content** and **server members** intent to be enabled!
 Add the bot with the `bot` and `applications.commands` scope to your server!
@@ -102,7 +102,7 @@ WantedBy=multi-user.target
 
 ## Support me
 
-Be sure to leave a ⭐️ if you like the project :) Thank you!
+Be sure to leave a ⭐️ if you like the project :) Thank you! Be sure to contribute, if you're interested!
 
 ## FAQ
 
