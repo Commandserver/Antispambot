@@ -259,7 +259,7 @@ int main() {
 			}
 
 			/* when more than 10 members joined in the past 60 seconds
-			 * you can adjust this number depending on your guild-size. I think 10 should be enough
+			 * you can adjust this number depending on your guild-size
 			 */
 			if (fast_joined_member_count >= 10) {
 				if (!first_join) {
@@ -780,7 +780,7 @@ int main() {
 						dpp::embed embed; // create the embed log message
 						embed.set_color(0xff6600);
 						embed.set_timestamp(time(nullptr));
-						embed.set_description(":warning: Spam detected by " + msg.author.get_mention());
+						embed.set_description(fmt::format(":warning: Spam detected by {} ({})", msg.author.get_mention(), msg.author.format_username()));
 						embed.add_field("Reason", "Einladung gepostet", true);
 						embed.add_field("Channel", fmt::format("<#{}>", msg.channel_id), true);
 						if (!msg.content.empty()) {
