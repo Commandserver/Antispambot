@@ -217,7 +217,7 @@ int main() {
 			{
 				std::unique_lock l(fast_joined_members.get_mutex());
 				auto &container = fast_joined_members.get_container();
-				container = {};
+				container.clear();
 			}
 			first_join = 0;
 		}
