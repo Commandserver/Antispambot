@@ -26,7 +26,7 @@ You can configure users and roles that are excluded.
 
 <hr>
 
-The bot creates the following slash commands in the server:
+The bot creates the following slash commands:
 
 | Slash command | description |
 |---------------|-------------|
@@ -34,8 +34,12 @@ The bot creates the following slash commands in the server:
 | `/info`       | Information about the bot |
 
 ## Dependencies
+
 * [cmake](https://cmake.org/) (version 3.16+)
 * [g++](https://gcc.gnu.org) (version 8 or higher)
+
+**Included dependencies (in the `/libs` folder)**
+
 * [DPP](https://github.com/brainboxdotcc/DPP) (version 10.0.9)
 * [spdlog](https://github.com/gabime/spdlog)
 
@@ -96,7 +100,7 @@ Restart=always
 WantedBy=multi-user.target
 ```
 
-## Supporte me
+## Support me
 
 Be sure to leave a ⭐️ if you like the project :) Thank you!
 
