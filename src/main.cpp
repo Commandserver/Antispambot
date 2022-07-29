@@ -820,14 +820,6 @@ int main() {
 				});
 			}
 		}
-
-		// DEBUG
-		if (same_messages_in_different_channels.size() >= 3 or same_messages_in_same_channel.size() >= 4 or same_attachment.size() >= 4 or messages_with_mentions.size() > 20) {
-			log->debug("\"" + event.msg.content + "\" was in " + std::to_string(same_messages_in_different_channels.size()) + " channels: "
-										+ " and in the same channel " + std::to_string(same_messages_in_same_channel.size())
-										+ " times. Found " + std::to_string(same_attachment.size()) + " Attachments that are the same. And mentions: " +
-										std::to_string(messages_with_mentions.size()));
-		}
     });
 
     /* Start bot */
