@@ -17,8 +17,10 @@
 #include "commands/info.hpp"
 #include "commands/manage.hpp"
 
-#define DAY 86400 /// amount of seconds of a day
-#define MINUTE 60 /// amount of seconds of a minute
+#define DAY 86400 //!< amount of seconds of a day
+#define MINUTE 60 //!< amount of seconds of a minute
+
+#define FAST_JOIN_THRESHOLD 60 //!< The time in seconds in which a certain number of players have to join, to be recognized as a raid. You can adjust this if you want
 
 
 int main() {
@@ -158,7 +160,7 @@ int main() {
 				int diff = (int) difftime(utc, m->gm.joined_at);
 
 				if (diff > MINUTE * 10) { // check if the member is not joined in the past 10 minutes
-					to_remove.push_back(m); // remove the member then
+					to_remove.push_back(m); // remove the member then from the cache
 				}
 
 				// join pause
@@ -238,45 +240,43 @@ int main() {
 			guild_member_cache.store(m);
 		}
 
-		{
-			/// The amount of members who joined in the last 60 seconds
-			uint32_t fast_joined_member_count = 0;
+		/// The amount of members who joined in the last 60 seconds
+		uint32_t fast_joined_member_count = 0;
 
-			// current utc time
-			time_t t = time(nullptr);
-			auto local_field = *gmtime(&t);
-			auto utc = mktime(&local_field);
+		// current utc time
+		time_t t = time(nullptr);
+		auto local_field = *gmtime(&t);
+		auto utc = mktime(&local_field);
 
-			/* IMPORTANT: We must lock the container to iterate it */
-			std::shared_lock l(guild_member_cache.get_mutex());
-			auto &member_cache_container = guild_member_cache.get_container();
+		/* IMPORTANT: We must lock the container to iterate it */
+		std::shared_lock l(guild_member_cache.get_mutex());
+		auto &member_cache_container = guild_member_cache.get_container();
 
-			for (auto &[id, m] : member_cache_container) {
-				int diff = (int) difftime(utc, m->gm.joined_at);
+		for (auto &[id, m] : member_cache_container) {
+			int diff = (int) difftime(utc, m->gm.joined_at);
 
-				if (diff < MINUTE) { // count the amount of members who joined in the last 60 seconds
-					fast_joined_member_count++;
-				}
+			if (diff < FAST_JOIN_THRESHOLD) { // count the amount of members who joined in the last 60 seconds
+				fast_joined_member_count++;
+			}
+		}
+
+		/* When more than 8 members joined in the past 60 seconds.
+		 * You can adjust this number depending on your guild size
+		 */
+		if (fast_joined_member_count >= 8) {
+			if (!first_join) {
+				first_join = time(nullptr);
 			}
 
-			/* when more than 10 members joined in the past 60 seconds
-			 * you can adjust this number depending on your guild-size
-			 */
-			if (fast_joined_member_count >= 10) {
-				if (!first_join) {
-					first_join = time(nullptr);
-				}
-
-				for (const auto &[id, m] : member_cache_container) {
-					if (difftime(utc, m->gm.joined_at) < MINUTE) {
-						if (!fast_joined_members.find(id)) {
-							/* Make a permanent pointer using new, for each message to be cached */
-							auto *gm = new CachedGuildMember();
-							/* Store the message into the pointer by copying it */
-							*gm = static_cast<CachedGuildMember>(m->gm);
-							/* Store the new pointer to the cache using the store() method */
-							fast_joined_members.store(gm);
-						}
+			for (const auto &[id, m] : member_cache_container) {
+				if (difftime(utc, m->gm.joined_at) < FAST_JOIN_THRESHOLD) {
+					if (!fast_joined_members.find(id)) {
+						/* Make a permanent pointer using new, for each message to be cached */
+						auto *gm = new CachedGuildMember();
+						/* Store the message into the pointer by copying it */
+						*gm = static_cast<CachedGuildMember>(m->gm);
+						/* Store the new pointer to the cache using the store() method */
+						fast_joined_members.store(gm);
 					}
 				}
 			}
