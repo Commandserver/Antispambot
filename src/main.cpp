@@ -24,57 +24,57 @@
 
 
 int main() {
-    /* parse config */
-    nlohmann::json config;
-    std::ifstream configfile("../config.json");
-    configfile >> config;
+	/* parse config */
+	nlohmann::json config;
+	std::ifstream configfile("../config.json");
+	configfile >> config;
 	configfile.close();
 
 
-    /* create bot */
-    dpp::cluster bot(config["token"], dpp::i_guilds | dpp::i_guild_messages | dpp::i_guild_members | dpp::i_message_content);
+	/* create bot */
+	dpp::cluster bot(config["token"], dpp::i_guilds | dpp::i_guild_messages | dpp::i_guild_members | dpp::i_message_content);
 
 
-    const std::string log_name = config["log-filename"];
+	const std::string log_name = config["log-filename"];
 
-    /* Set up spdlog logger */
-    std::shared_ptr<spdlog::logger> log;
-    spdlog::init_thread_pool(8192, 2);
-    std::vector<spdlog::sink_ptr> sinks;
-    auto stdout_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
-    auto rotating = std::make_shared<spdlog::sinks::rotating_file_sink_mt>(log_name, 1024 * 1024 * 5, 10);
-    sinks.push_back(stdout_sink);
-    sinks.push_back(rotating);
-    log = std::make_shared<spdlog::async_logger>("logs", sinks.begin(), sinks.end(), spdlog::thread_pool(),
-                                            spdlog::async_overflow_policy::block);
-    spdlog::register_logger(log);
-    log->set_pattern("%^%Y-%m-%d %H:%M:%S.%e [%L] [th#%t]%$ : %v");
-    log->set_level(spdlog::level::level_enum::info);
+	/* Set up spdlog logger */
+	std::shared_ptr<spdlog::logger> log;
+	spdlog::init_thread_pool(8192, 2);
+	std::vector<spdlog::sink_ptr> sinks;
+	auto stdout_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+	auto rotating = std::make_shared<spdlog::sinks::rotating_file_sink_mt>(log_name, 1024 * 1024 * 5, 10);
+	sinks.push_back(stdout_sink);
+	sinks.push_back(rotating);
+	log = std::make_shared<spdlog::async_logger>("logs", sinks.begin(), sinks.end(), spdlog::thread_pool(),
+												 spdlog::async_overflow_policy::block);
+	spdlog::register_logger(log);
+	log->set_pattern("%^%Y-%m-%d %H:%M:%S.%e [%L] [th#%t]%$ : %v");
+	log->set_level(spdlog::level::level_enum::info);
 
-    /* Integrate spdlog logger to D++ log events */
-    bot.on_log([&log](const dpp::log_t &event) {
-        switch (event.severity) {
-            case dpp::ll_trace:
-                log->trace("{}", event.message);
-                break;
-            case dpp::ll_debug:
-                log->debug("{}", event.message);
-                break;
-            case dpp::ll_info:
-                log->info("{}", event.message);
-                break;
-            case dpp::ll_warning:
-                log->warn("{}", event.message);
-                break;
-            case dpp::ll_error:
-                log->error("{}", event.message);
-                break;
-            case dpp::ll_critical:
-            default:
-                log->critical("{}", event.message);
-                break;
-        }
-    });
+	/* Integrate spdlog logger to D++ log events */
+	bot.on_log([&log](const dpp::log_t &event) {
+		switch (event.severity) {
+			case dpp::ll_trace:
+				log->trace("{}", event.message);
+				break;
+			case dpp::ll_debug:
+				log->debug("{}", event.message);
+				break;
+			case dpp::ll_info:
+				log->info("{}", event.message);
+				break;
+			case dpp::ll_warning:
+				log->warn("{}", event.message);
+				break;
+			case dpp::ll_error:
+				log->error("{}", event.message);
+				break;
+			case dpp::ll_critical:
+			default:
+				log->critical("{}", event.message);
+				break;
+		}
+	});
 
 	/// Users and Roles IDs who are excluded from the spam detection
 	ConfigSet bypassConfig("../bypass-config.txt");
@@ -334,15 +334,15 @@ int main() {
 			}
 		}
 
-        /* add the message to the cache */
-        {
-            /* Make a permanent pointer using new, for each message to be cached */
-            auto *m = new dpp::message();
-            /* Store the message into the pointer by copying it */
-            *m = event.msg;
-            /* Store the new pointer to the cache using the store() method */
-            message_cache.store(m);
-        }
+		/* add the message to the cache */
+		{
+			/* Make a permanent pointer using new, for each message to be cached */
+			auto *m = new dpp::message();
+			/* Store the message into the pointer by copying it */
+			*m = event.msg;
+			/* Store the new pointer to the cache using the store() method */
+			message_cache.store(m);
+		}
 
 		/* begin of the main algorithm */
 
@@ -464,8 +464,8 @@ int main() {
 			return;
 		}
 
-        // check for blacklisted file extensions
-        for (const dpp::attachment &attachment: event.msg.attachments) {
+		// check for blacklisted file extensions
+		for (const dpp::attachment &attachment: event.msg.attachments) {
 			for (const std::string ext : config["forbidden-file-extensions"]) {
 				if (endsWith(attachment.filename, ext)) {
 					log->debug("forbidden file extension: " + ext);
@@ -474,7 +474,7 @@ int main() {
 					return;
 				}
 			}
-        }
+		}
 
 		/*
 		 * Define some counters as vectors to analyze the users message history.
@@ -483,31 +483,31 @@ int main() {
 
 		std::set<dpp::snowflake> different_channel_ids; //!< IDs of all different channel in which the user has sent messages
 
-        std::vector<dpp::message *> same_messages_in_different_channels; //!< counter for how many channels the user sent the same message in
+		std::vector<dpp::message *> same_messages_in_different_channels; //!< counter for how many channels the user sent the same message in
 
-        std::vector<dpp::message *> same_messages_in_same_channel;
+		std::vector<dpp::message *> same_messages_in_same_channel;
 
-        std::vector<dpp::message *> same_attachment; //!< count how many times the user has sent the same attachment or sticker
+		std::vector<dpp::message *> same_attachment; //!< count how many times the user has sent the same attachment or sticker
 
 		uint32_t mention_count = 0; //!< how many mentions in all messages (including cached) from the user
 
-        /* https://github.com/brainboxdotcc/DPP/blob/a7c9e02253707fa73f242d8c07b489d13f95e14a/src/dpp/discordclient.cpp#L514-L548 */
-        /** a list of too old messages that could be removed */
-        std::vector<dpp::message *> to_remove;
-        std::unordered_map<dpp::snowflake, dpp::message *> &mc = message_cache.get_container();
-        std::shared_lock message_cache_lock(message_cache.get_mutex());
+		/* https://github.com/brainboxdotcc/DPP/blob/a7c9e02253707fa73f242d8c07b489d13f95e14a/src/dpp/discordclient.cpp#L514-L548 */
+		/** a list of too old messages that could be removed */
+		std::vector<dpp::message *> to_remove;
+		std::unordered_map<dpp::snowflake, dpp::message *> &mc = message_cache.get_container();
+		std::shared_lock message_cache_lock(message_cache.get_mutex());
 
 		for (const auto &[id, msg]: mc) {
 
-            // current utc time
-            time_t t = time(nullptr);
-            auto local_field = *gmtime(&t);
-            auto utc = mktime(&local_field);
+			// current utc time
+			time_t t = time(nullptr);
+			auto local_field = *gmtime(&t);
+			auto utc = mktime(&local_field);
 
-            // check if the message in the cache is older than 5 minutes. If so, remove it from the cache
-            if (difftime(utc, msg->sent) > MINUTE * 5) {
-                to_remove.push_back(msg);
-            } else {
+			// check if the message in the cache is older than 5 minutes. If so, remove it from the cache
+			if (difftime(utc, msg->sent) > MINUTE * 5) {
+				to_remove.push_back(msg);
+			} else {
 				// count in how many channels the user wrote in the last 40 seconds
 				if (msg->author.id == event.msg.author.id and
 					difftime(utc, msg->sent) < 40) {
@@ -516,57 +516,57 @@ int main() {
 					}
 				}
 
-                // count channels with the same message in the last 130 seconds
-                if (msg->author.id == event.msg.author.id and
+				// count channels with the same message in the last 130 seconds
+				if (msg->author.id == event.msg.author.id and
 					difftime(utc, msg->sent) < 130 and
 					!msg->content.empty() and
 					!event.msg.content.empty() and
 					msg->content == event.msg.content and
 					!bool(msg->message_reference.message_id)) {
-                    bool already_added = false;
-                    for (const dpp::message *m: same_messages_in_different_channels) {
-                        if (m->channel_id == msg->channel_id) {
-                            already_added = true;
-                            break;
-                        }
-                    }
-                    if (!already_added) {
-                        same_messages_in_different_channels.push_back(msg);
-                    }
-                }
+					bool already_added = false;
+					for (const dpp::message *m: same_messages_in_different_channels) {
+						if (m->channel_id == msg->channel_id) {
+							already_added = true;
+							break;
+						}
+					}
+					if (!already_added) {
+						same_messages_in_different_channels.push_back(msg);
+					}
+				}
 
-                // same attachment or sticker sent somewhere from the user in the last 50 seconds
-                if (msg->author.id == event.msg.author.id and
+				// same attachment or sticker sent somewhere from the user in the last 50 seconds
+				if (msg->author.id == event.msg.author.id and
 					difftime(utc, msg->sent) < 50) {
-                    for (const dpp::attachment &a: msg->attachments) {
-                        for (const dpp::attachment &event_a: event.msg.attachments) {
-                            if (a.size == event_a.size) {
-                                same_attachment.push_back(msg);
-                                goto skip_same_attachment_check;
-                            }
-                        }
-                    }
-                    for (const dpp::sticker &sticker: msg->stickers) {
-                        for (const dpp::sticker &event_s: event.msg.stickers) {
-                            if (sticker.id == event_s.id) {
-                                same_attachment.push_back(msg);
-                                goto skip_same_attachment_check;
-                            }
-                        }
-                    }
-                }
-                skip_same_attachment_check:
+					for (const dpp::attachment &a: msg->attachments) {
+						for (const dpp::attachment &event_a: event.msg.attachments) {
+							if (a.size == event_a.size) {
+								same_attachment.push_back(msg);
+								goto skip_same_attachment_check;
+							}
+						}
+					}
+					for (const dpp::sticker &sticker: msg->stickers) {
+						for (const dpp::sticker &event_s: event.msg.stickers) {
+							if (sticker.id == event_s.id) {
+								same_attachment.push_back(msg);
+								goto skip_same_attachment_check;
+							}
+						}
+					}
+				}
+				skip_same_attachment_check:
 
-                // count same messages in the same channel from the last 40 seconds
-                if (msg->author.id == event.msg.author.id and
+				// count same messages in the same channel from the last 40 seconds
+				if (msg->author.id == event.msg.author.id and
 					difftime(utc, msg->sent) < 40 and
 					!msg->content.empty() and
 					!event.msg.content.empty() and
 					msg->content == event.msg.content and
 					!bool(msg->message_reference.message_id) and
 					msg->channel_id == event.msg.channel_id) {
-                    same_messages_in_same_channel.push_back(msg);
-                }
+					same_messages_in_same_channel.push_back(msg);
+				}
 
 				// count amount of mentions in his last messages from the last 50 seconds
 				if (msg->author.id == event.msg.author.id and
@@ -575,16 +575,16 @@ int main() {
 					!event.msg.content.empty()) {
 					mention_count += event.msg.mentions.size();
 				}
-            }
-        }
+			}
+		}
 		message_cache_lock.unlock();
 
-        // remove too old messages from the cache
-        for (dpp::message *mp: to_remove) {
-            message_cache.remove(mp); // will lock the container with unique mutex
-        }
+		// remove too old messages from the cache
+		for (dpp::message *mp: to_remove) {
+			message_cache.remove(mp); // will lock the container with unique mutex
+		}
 
-        // too many repeated messages in multiple channels
+		// too many repeated messages in multiple channels
 		if (same_messages_in_different_channels.size() >= 3) {
 			std::string channelMentions;
 			for (auto &s : same_messages_in_different_channels) {
@@ -596,7 +596,7 @@ int main() {
 			return;
 		}
 
-        // too many repeated messages in the same channel
+		// too many repeated messages in the same channel
 		if (same_messages_in_same_channel.size() >= 4) {
 			mitigateSpam(bot, message_cache, config, event.msg,
 						 "Repeated message 4 times", DAY * (urlCount >= 1 ? 27 : 8), true); // maximum mute duration if contains url
@@ -686,10 +686,10 @@ int main() {
 				});
 			}
 		}
-    });
+	});
 
-    /* Start bot */
-    bot.start(false);
+	/* Start bot */
+	bot.start(false);
 
-    return 0;
+	return 0;
 }
