@@ -176,7 +176,8 @@ int main() {
 			}
 		}
 
-		if (fast_joined_members.count() > 0 and first_join and (difftime(time(nullptr), first_join) > MINUTE * 6 or join_pause > 40)) { // when no users joined in the last 40 seconds, or 6 minutes since the first join exceeds
+		// when no users joined in the last 40 seconds, or 6 minutes since the first join exceeds
+		if (fast_joined_members.count() > 0 and first_join and (difftime(time(nullptr), first_join) > MINUTE * 6 or join_pause > 40)) {
 			log->info("raid detected detected, with " + std::to_string(fast_joined_members.count()) + " members");
 
 			// send log message
