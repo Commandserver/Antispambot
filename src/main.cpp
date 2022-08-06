@@ -405,7 +405,8 @@ int main() {
 							}
 
 							//cout << "Repeated phrases detected: " << phrase << ", occurrences=" << occurrences << endl;
-							mitigateSpam(fmt::format("Repeated phrase in message:\n`{}`\nOccurrences: {}", phrase, occurrences), 1800, true);
+							mitigateSpam(bot, message_cache, config, event.msg,
+										 fmt::format("Repeated phrase in message:\n`{}`\nOccurrences: {}", phrase, occurrences), 1800, true);
 							return;
 						}
 
