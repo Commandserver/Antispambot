@@ -66,7 +66,7 @@ std::string stringifySeconds(uint32_t seconds) {
  * @param guildId
  * @param userId
  */
-void muteMember(dpp::cluster &bot, const uint32_t muteDuration, const dpp::snowflake guildId, const dpp::snowflake userId) {
+void muteMember(dpp::cluster &bot, JsonFile &muteCounter, const uint32_t muteDuration, const dpp::snowflake guildId, const dpp::snowflake userId) {
 	try { // timeout member
 		auto member = dpp::find_guild_member(guildId, userId);
 		time_t muteUntil = time(nullptr) + muteDuration;
@@ -82,6 +82,12 @@ void muteMember(dpp::cluster &bot, const uint32_t muteDuration, const dpp::snowf
 	} catch (dpp::cache_exception &exception) {
 		bot.log(dpp::ll_error, "couldn't find user " + std::to_string(userId) + " in cache");
 	}
+	// count mute
+	{
+		std::unique_lock l(muteCounter.get_mutex());
+		muteCounter.content.push_back(time(nullptr));
+	}
+	muteCounter.save();
 }
 
 /// helper function to delete a message in case of spam
@@ -149,9 +155,9 @@ void deleteUserMessages(dpp::cluster &bot, dpp::cache<dpp::message> &message_cac
  * @param clearHistoryMessages Will delete all messages from the user if set to true. If false, it will only delete the current message
  * When set to false, it deletes only this message
  */
-void mitigateSpam(dpp::cluster &bot, dpp::cache<dpp::message> &message_cache, nlohmann::json &config, const dpp::message &msg, const std::string& reason, const uint32_t muteDuration, bool clearHistoryMessages) {
+void mitigateSpam(dpp::cluster &bot, dpp::cache<dpp::message> &message_cache, nlohmann::json &config, JsonFile &muteCounter, const dpp::message &msg, const std::string& reason, const uint32_t muteDuration, bool clearHistoryMessages) {
 
-	muteMember(bot, muteDuration, msg.guild_id, msg.author.id);
+	muteMember(bot, muteCounter, muteDuration, msg.guild_id, msg.author.id);
 
 	dpp::embed embed; // create the embed log message
 	embed.set_color(0xefa226);

@@ -10,9 +10,9 @@
 #include <algorithm>
 #include <set>
 
+#include "JsonFile.h"
 #include "utils.hpp"
 #include "ConfigSet.h"
-#include "JsonFile.h"
 #include "CachedGuildMember.h"
 
 #include "commands/info.hpp"
@@ -179,7 +179,8 @@ int main() {
 			}
 		}
 
-		if (fast_joined_members.count() > 0 and first_join and (difftime(time(nullptr), first_join) > MINUTE * 6 or join_pause > 40)) { // when no users joined in the last 40 seconds, or 6 minutes since the first join exceeds
+		// when no users joined in the last 40 seconds, or 6 minutes since the first join exceeds
+		if (fast_joined_members.count() > 0 and first_join and (difftime(time(nullptr), first_join) > MINUTE * 6 or join_pause > 40)) {
 			log->info("raid detected detected, with " + std::to_string(fast_joined_members.count()) + " members");
 
 			// send log message
@@ -291,7 +292,7 @@ int main() {
 	dpp::cache<dpp::message> message_cache;
 
 
-	bot.on_message_create([&bot, &log, &message_cache, &domainBlacklist, &forbiddenWords, &config, &bypassConfig](const dpp::message_create_t &event) {
+	bot.on_message_create([&bot, &log, &message_cache, &domainBlacklist, &forbiddenWords, &config, &bypassConfig, &muteCounter](const dpp::message_create_t &event) {
 		/*
 		 * Do nothing when:
 		 * - from a bot
@@ -362,7 +363,8 @@ int main() {
 
 				if (words.size() >= (wordsComboCount + requiredOccurrences - 1)) { // wenn überhaupt so viele wörter da sind das man das werten kann
 
-					for (auto iterator = words.begin(); iterator + (wordsComboCount + requiredOccurrences - 2) != words.end(); ++iterator) { // gehe die wörter durch bis zu einem punkt an dem eh keine duplizierungen mehr auftreten können
+					// gehe die wörter durch bis zu einem punkt an dem eh keine duplizierungen mehr auftreten können
+					for (auto iterator = words.begin(); iterator + (wordsComboCount + requiredOccurrences - 2) != words.end(); ++iterator) {
 
 						std::vector<std::string*> phrase_to_check;
 						//cout << "Checking phrase: ";
@@ -405,7 +407,7 @@ int main() {
 							}
 
 							//cout << "Repeated phrases detected: " << phrase << ", occurrences=" << occurrences << endl;
-							mitigateSpam(bot, message_cache, config, event.msg,
+							mitigateSpam(bot, message_cache, config, muteCounter, event.msg,
 										 fmt::format("Repeated phrase in message:\n`{}`\nOccurrences: {}", phrase, occurrences), 1800, true);
 							return;
 						}
@@ -451,12 +453,12 @@ int main() {
 						for (auto &s: domainBlacklist.get_container()) {
 							if (s.rfind('.', 0) == 0 and endsWith(domain, s)) { // if it's a top level domain
 								log->debug("blacklisted top-level-domain: " + domain);
-								mitigateSpam(bot, message_cache, config, event.msg,
+								mitigateSpam(bot, message_cache, config, muteCounter, event.msg,
 											 fmt::format("Blacklisted top-level-domain: `{}`", domain), DAY * 27, true);
 								return;
 							} else if (s == domain) {
 								log->debug("blacklisted domain: " + domain);
-								mitigateSpam(bot, message_cache, config, event.msg,
+								mitigateSpam(bot, message_cache, config, muteCounter, event.msg,
 											 fmt::format("Blacklisted domain: `{}`", domain), DAY * 27, true);
 								return;
 							}
@@ -468,7 +470,7 @@ int main() {
 				for (const std::string ext : config["forbidden-file-extensions"]) {
 					if (endsWith(URL, ext)) {
 						log->debug("forbidden extension: " + ext);
-						mitigateSpam(bot, message_cache, config, event.msg,
+						mitigateSpam(bot, message_cache, config, muteCounter, event.msg,
 									 fmt::format("Forbidden file extension in URL: `{}`", ext), DAY * 27, true);
 						return;
 					}
@@ -490,7 +492,7 @@ int main() {
 					if (message.find(" " + forbiddenWord) != std::string::npos or message.find(forbiddenWord + " ") != std::string::npos or
 					message.rfind(forbiddenWord, 0) == 0 or endsWith(message, forbiddenWord)) { // search the bad word in the message
 						log->debug("bad word: " + forbiddenWord);
-						mitigateSpam(bot, message_cache, config, event.msg,
+						mitigateSpam(bot, message_cache, config, muteCounter, event.msg,
 									 fmt::format("Use of a bad word: `{}`", forbiddenWord), 660, false);
 						// send feedback message
 						bot.message_create(
@@ -514,7 +516,7 @@ int main() {
 		// to many urls in general
 		if (urlCount > 8) {
 			log->debug("too many urls");
-			mitigateSpam(bot, message_cache, config, event.msg,
+			mitigateSpam(bot, message_cache, config, muteCounter, event.msg,
 						 "Too many URLs", DAY * 27, true);
 			return;
 		}
@@ -522,7 +524,7 @@ int main() {
 		// too many mentions
 		if (event.msg.mentions.size() > 6) {
 			log->debug("too many mentions in one message");
-			mitigateSpam(bot, message_cache, config, event.msg,
+			mitigateSpam(bot, message_cache, config, muteCounter, event.msg,
 						 "Mass ping", DAY * 14, false);
 			return;
 		}
@@ -531,7 +533,7 @@ int main() {
 		if (urlCount >= 1 and (event.msg.content.find("@everyone") != std::string::npos or
 							   event.msg.content.find("@here") != std::string::npos)) {
 			log->debug("url with @everyone-mention");
-			mitigateSpam(bot, message_cache, config, event.msg,
+			mitigateSpam(bot, message_cache, config, muteCounter, event.msg,
 						 "Message contains URL and @everyone", DAY * (inviteCount >= 1 ? 27 : 14), true);
 			return;
 		}
@@ -541,7 +543,7 @@ int main() {
 			for (const std::string ext : config["forbidden-file-extensions"]) {
 				if (endsWith(attachment.filename, ext)) {
 					log->debug("forbidden file extension: " + ext);
-					mitigateSpam(bot, message_cache, config, event.msg,
+					mitigateSpam(bot, message_cache, config, muteCounter, event.msg,
 								 fmt::format("Forbidden file extension: `{}`", ext), DAY * 27, true);
 					return;
 				}
@@ -662,7 +664,7 @@ int main() {
 			for (auto &s : same_messages_in_different_channels) {
 				channelMentions += fmt::format("<#{}>", s->channel_id);
 			}
-			mitigateSpam(bot, message_cache, config, event.msg,
+			mitigateSpam(bot, message_cache, config, muteCounter, event.msg,
 						 fmt::format("Crossposted message in {} Channels:||{}||",
 									 same_messages_in_different_channels.size(), channelMentions), DAY * (urlCount >= 1 ? 27 : 14), true); // maximum mute duration if contains url
 			return;
@@ -676,21 +678,21 @@ int main() {
 					return;
 				}
 			}
-			mitigateSpam(bot, message_cache, config, event.msg,
+			mitigateSpam(bot, message_cache, config, muteCounter, event.msg,
 						 "Repeated message 4 times", DAY * (urlCount >= 1 ? 27 : 8), true); // maximum mute duration if contains url
 			return;
 		}
 
 		// same attachment or sticker sent somewhere
 		if (same_attachment.size() >= 4) {
-			mitigateSpam(bot, message_cache, config, event.msg,
+			mitigateSpam(bot, message_cache, config, muteCounter, event.msg,
 						 "Repeated attachment 4 times", DAY * 7, true);
 			return;
 		}
 
 		if (mention_count > 20) {
 			log->debug("too many mentions in multiple messages");
-			mitigateSpam(bot, message_cache, config, event.msg,
+			mitigateSpam(bot, message_cache, config, muteCounter, event.msg,
 						 "Too many mentions through multiple messages", DAY * 27, true);
 			return;
 		}
@@ -701,7 +703,7 @@ int main() {
 			for (auto &id : different_channel_ids) {
 				channelMentions += "<#" + std::to_string(id) + ">";
 			}
-			mitigateSpam(bot, message_cache, config, event.msg,
+			mitigateSpam(bot, message_cache, config, muteCounter, event.msg,
 						 fmt::format("Sent messages in a shorter time in {} Channels:||{}||",
 									 different_channel_ids.size(), channelMentions), DAY * (urlCount >= 1 ? 27 : 1), true); // maximum mute duration if contains url
 			return;
@@ -710,14 +712,14 @@ int main() {
 		// too many discord-invitations in one message
 		if (inviteCount > 4 or inviteCodes.size() > 2) {
 			log->debug("too many invites");
-			mitigateSpam(bot, message_cache, config, event.msg,
+			mitigateSpam(bot, message_cache, config, muteCounter, event.msg,
 						 "Too many invitations", DAY * 27, true);
 			return;
 		} else {
 			// check for invitation to another server
 			for (const std::string &inviteCode: inviteCodes) {
 				log->debug("invite code: " + inviteCode);
-				bot.invite_get(inviteCode, [guild_id = event.msg.guild_id, &config, &bot, msg = event.msg, &message_cache](const dpp::confirmation_callback_t &e) {
+				bot.invite_get(inviteCode, [guild_id = event.msg.guild_id, &config, &bot, msg = event.msg, &message_cache, &muteCounter](const dpp::confirmation_callback_t &e) {
 					if (!e.is_error()) {
 						auto invite = std::get<dpp::invite>(e.value);
 						if (invite.guild_id == guild_id) {
@@ -731,7 +733,7 @@ int main() {
 
 					int muteDuration = DAY * 27;
 
-					muteMember(bot, muteDuration, msg.guild_id, msg.author.id);
+					muteMember(bot, muteCounter, muteDuration, msg.guild_id, msg.author.id);
 
 					dpp::embed embed; // create the embed log message
 					embed.set_color(0xff6600);
