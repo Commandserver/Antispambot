@@ -358,8 +358,8 @@ int main() {
 
 				std::vector<std::string> words = dpp::utility::tokenize(event.msg.content, " ");
 
-				#define wordsComboCount 4 // wie viele wörter aneinander gereiht sein müssen
-				#define requiredOccurrences 4 // wie viele duplizierte phrasen in der kompletten nachricht sein müssen, das das system anschlägt
+#define wordsComboCount 4 // wie viele wörter aneinander gereiht sein müssen
+#define requiredOccurrences 4 // wie viele duplizierte phrasen in der kompletten nachricht sein müssen, das das system anschlägt
 
 				if (words.size() >= (wordsComboCount + requiredOccurrences - 1)) { // wenn überhaupt so viele wörter da sind das man das werten kann
 
