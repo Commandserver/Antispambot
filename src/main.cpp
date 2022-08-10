@@ -660,7 +660,7 @@ int main() {
 					embed.set_color(0xff6600);
 					embed.set_timestamp(time(nullptr));
 					embed.set_description(fmt::format(":warning: Spam detected by {} ({})", msg.author.get_mention(), msg.author.format_username()));
-					embed.add_field("Reason", "Einladung gepostet", true);
+					embed.add_field("Reason", "Invitation posted", true);
 					embed.add_field("Channel", fmt::format("<#{}>", msg.channel_id), true);
 					if (!msg.content.empty()) {
 						embed.add_field("Original Message", msg.content);
