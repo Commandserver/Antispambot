@@ -213,7 +213,7 @@ int main() {
 			embed.set_description(memberStr);
 			dpp::message msg("@everyone");
 			msg.allowed_mentions.parse_everyone = true;
-			msg.channel_id = config["log-channel-id"];
+			msg.channel_id = static_cast<dpp::snowflake>(config["log-channel-id"]);
 			msg.add_embed(embed);
 			bot.message_create(msg, [&log](const dpp::confirmation_callback_t &c) {
 				if (c.is_error()) {
@@ -311,7 +311,7 @@ int main() {
 		auto *channel = dpp::find_channel(event.msg.channel_id);
 		if (channel and channel->parent_id) {
 			for (auto &id: config["excluded_category_ids"]) {
-				if (channel->parent_id == id) {
+				if (channel->parent_id == static_cast<dpp::snowflake>(id)) {
 					return;
 				}
 			}
@@ -321,11 +321,11 @@ int main() {
 		{
 			std::shared_lock l(bypassConfig.get_mutex());
 			for (const std::string &entry: bypassConfig.get_container()) {
-				if (event.msg.author.id == stol(entry)) {
+				if (event.msg.author.id == static_cast<dpp::snowflake>(entry)) {
 					return;
 				}
 				for (dpp::snowflake roleId: event.msg.member.roles) {
-					if (roleId == stol(entry)) {
+					if (roleId == static_cast<dpp::snowflake>(entry)) {
 						return;
 					}
 				}
@@ -674,7 +674,7 @@ int main() {
 		if (same_messages_in_same_channel.size() >= 4) {
 			// do nothing when whitelisted channel
 			for (auto &id : config["excluded_channel_ids"]) {
-				if (event.msg.channel_id == id) {
+				if (event.msg.channel_id == static_cast<dpp::snowflake>(id)) {
 					return;
 				}
 			}
