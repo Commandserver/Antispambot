@@ -23,7 +23,6 @@
 #include <dpp/snowflake.h>
 #include <dpp/managed.h>
 #include <dpp/nlohmann/json.hpp>
-#include <dpp/fmt-minimal.h>
 
 namespace dpp {
 
@@ -59,6 +58,19 @@ application& application::fill_from_json(nlohmann::json* j) {
 		cover_image = ci;
 	}
 	set_int32_not_null(j, "flags", flags);
+	if (j->contains("tags")) {
+		for (const auto& tag : (*j)["tags"]) {
+			this->tags.push_back(to_string(tag));
+		}
+	}
+	if (j->contains("install_params")) {
+		json& p = (*j)["install_params"];
+		set_snowflake_not_null(&p, "permissions", this->install_params.permissions);
+		for (const auto& scope : p["scopes"]) {
+			this->install_params.scopes.push_back(to_string(scope));
+		}
+	}
+	set_string_not_null(j, "custom_install_url", custom_install_url);
 	if (j->contains("team")) {
 		json& t = (*j)["team"];
 		std::string i = string_not_null(&t, "icon");
@@ -82,12 +94,7 @@ application& application::fill_from_json(nlohmann::json* j) {
 
 std::string application::get_cover_image_url(uint16_t size) const {
 	if (!this->cover_image.to_string().empty()) {
-		return fmt::format("{}/app-icons/{}/{}.png{}",
-						   utility::cdn_host,
-						   this->id,
-						   this->cover_image.to_string(),
-						   utility::avatar_size(size)
-		);
+		return utility::cdn_host + "/app-icons/" + std::to_string(this->id) + "/" + this->cover_image.to_string() + ".png" + utility::avatar_size(size);
 	} else {
 		return std::string();
 	}
@@ -95,12 +102,7 @@ std::string application::get_cover_image_url(uint16_t size) const {
 
 std::string application::get_icon_url(uint16_t size) const {
 	if (!this->icon.to_string().empty()) {
-		return fmt::format("{}/app-icons/{}/{}.png{}",
-						   utility::cdn_host,
-						   this->id,
-						   this->icon.to_string(),
-						   utility::avatar_size(size)
-		);
+		return utility::cdn_host + "/app-icons/" + std::to_string(this->id) + "/" + this->icon.to_string() + ".png" + utility::avatar_size(size);
 	} else {
 		return std::string();
 	}

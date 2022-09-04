@@ -31,7 +31,6 @@
 #include <iostream>
 #include <dpp/nlohmann/json.hpp>
 #include <utility>
-#include <dpp/fmt-minimal.h>
 #include <algorithm>
 
 namespace dpp {
@@ -46,7 +45,7 @@ namespace dpp {
 	#endif
 #endif
 
-event_handle __next_handle = 1;
+event_handle _next_handle = 1;
 
 /**
  * @brief An audit reason for each thread. These are per-thread to make the cluster
@@ -74,9 +73,8 @@ template<typename T> std::function<void(const T&)> make_intent_warning(cluster* 
 }
 
 cluster::cluster(const std::string &_token, uint32_t _intents, uint32_t _shards, uint32_t _cluster_id, uint32_t _maxclusters, bool comp, cache_policy_t policy, uint32_t request_threads, uint32_t request_threads_raw)
-	: rest(nullptr), raw_rest(nullptr), compressed(comp), start_time(0), token(_token), last_identify(time(NULL) - 5), intents(_intents),
+	: default_gateway("gateway.discord.gg"), rest(nullptr), raw_rest(nullptr), compressed(comp), start_time(0), token(_token), last_identify(time(NULL) - 5), intents(_intents),
 	numshards(_shards), cluster_id(_cluster_id), maxclusters(_maxclusters), rest_ping(0.0), cache_policy(policy), ws_mode(ws_json)
-	
 {
 	/* Instantiate REST request queues */
 	rest = new request_queue(this, request_threads);
@@ -99,18 +97,9 @@ cluster::cluster(const std::string &_token, uint32_t _intents, uint32_t _shards,
 
 cluster::~cluster()
 {
-	this->terminating.notify_all();
-
+	this->shutdown();
 	delete rest;
 	delete raw_rest;
-	/* Free memory for active timers */
-	for (auto & t : timer_list) {
-		delete t.second;
-	}
-	for (const auto& sh : shards) {
-		log(ll_info, fmt::format("Terminating shard id {}", sh.second->shard_id));
-		delete sh.second;
-	}
 #ifdef _WIN32
 	WSACleanup();
 #endif
@@ -149,77 +138,110 @@ void cluster::start(bool return_after) {
 	auto block_calling_thread = [this]() {
 		std::mutex thread_mutex;
 		std::unique_lock<std::mutex> thread_lock(thread_mutex);
-
 		this->terminating.wait(thread_lock);
 	};
 
 	/* Start up all shards */
-	if (numshards == 0) {
-		gateway g;
-		try {
-			g = dpp::sync<gateway>(this, &cluster::get_gateway_bot);
+	gateway g;
+	try {
+		g = dpp::sync<gateway>(this, &cluster::get_gateway_bot);
+		log(ll_debug, "Cluster: " + std::to_string(g.session_start_remaining) + " of " + std::to_string(g.session_start_total) + " session starts remaining");
+		if (g.session_start_remaining < g.shards) {
+			throw dpp::connection_exception("Discord indicates you cannot start enough sessions to boot this cluster! Cluster startup aborted. Try again later.");
+		}
+		if (g.session_start_max_concurrency > 1) {
+			log(ll_debug, "Cluster: Large bot sharding; Using session concurrency: " + std::to_string(g.session_start_max_concurrency));
+		}
+		if (numshards == 0) {
+			if (g.shards) {
+				log(ll_info, "Auto Shard: Bot requires " + std::to_string(g.shards) + std::string(" shard") + ((g.shards > 1) ? "s" : ""));
+			} else {
+				throw dpp::connection_exception("Auto Shard: Cannot determine number of shards. Cluster startup aborted. Check your connection.");
+			}
 			numshards = g.shards;
 		}
-		catch (const dpp::rest_exception& e) {
-			if (std::string(e.what()) == "401: Unauthorized") {
-				/* Throw special form of exception for invalid token */
-				throw dpp::invalid_token_exception("Invalid bot token (401: Unauthorized when getting gateway shard count)");
-			} else {
-				/* Rethrow */
-				throw e;
-			}
-		}
-		if (g.shards) {
-			log(ll_info, fmt::format("Auto Shard: Bot requires {} shard{}", g.shards, (g.shards > 1) ? "s" : ""));
-			if (g.session_start_remaining < g.shards) {
-				log(ll_critical, fmt::format("Auto Shard: Discord indicates you cannot start any more sessions! Cluster startup aborted. Try again later."));
-			} else {
-				log(ll_debug, fmt::format("Auto Shard: {} of {} session starts remaining", g.session_start_remaining, g.session_start_total));
-				cluster::start(true);
-			}
-		} else {
-			log(ll_critical, fmt::format("Auto Shard: Cannot determine number of shards. Cluster startup aborted. Check your connection."));
-			return;
-		}
-		if (!return_after)
-			block_calling_thread();
-
-	} else {
-		start_time = time(NULL);
-
-		log(ll_debug, fmt::format("Starting with {} shards...", numshards));
-
-		for (uint32_t s = 0; s < numshards; ++s) {
-			/* Filter out shards that aren't part of the current cluster, if the bot is clustered */
-			if (s % maxclusters == cluster_id) {
-				/* Each discord_client spawns its own thread in its run() */
-				try {
-					this->shards[s] = new discord_client(this, s, numshards, token, intents, compressed, ws_mode);
-					this->shards[s]->run();
-				}
-				catch (const std::exception &e) {
-					log(dpp::ll_critical, fmt::format("Could not start shard {}: {}", s, e.what()));
-				}
-				/* Stagger the shard startups */
-				std::this_thread::sleep_for(std::chrono::seconds(5));
-			}
-		}
-
-		/* Get all active DM channels and map them to user id -> dm id */
-		this->current_user_get_dms([this](const dpp::confirmation_callback_t& completion) {
-			dpp::channel_map dmchannels = std::get<channel_map>(completion.value);
-			for (auto & c : dmchannels) {
-				for (auto & u : c.second.recipients) {
-					this->set_dm_channel(u, c.second.id);
-				}
-			}
-		});
-
-		log(ll_debug, "Shards started.");
-		
-		if (!return_after)
-		    block_calling_thread();
 	}
+	catch (const dpp::rest_exception& e) {
+		if (std::string(e.what()) == "401: Unauthorized") {
+			/* Throw special form of exception for invalid token */
+			throw dpp::invalid_token_exception("Invalid bot token (401: Unauthorized when getting gateway shard count)");
+		} else {
+			/* Rethrow */
+			throw e;
+		}
+	}
+
+	start_time = time(NULL);
+
+	log(ll_debug, "Starting with " + std::to_string(numshards) + " shards...");
+
+	for (uint32_t s = 0; s < numshards; ++s) {
+		/* Filter out shards that aren't part of the current cluster, if the bot is clustered */
+		if (s % maxclusters == cluster_id) {
+			/* Each discord_client spawns its own thread in its run() */
+			try {
+				this->shards[s] = new discord_client(this, s, numshards, token, intents, compressed, ws_mode);
+				this->shards[s]->run();
+			}
+			catch (const std::exception &e) {
+				log(dpp::ll_critical, "Could not start shard " + std::to_string(s) + ": " + std::string(e.what()));
+			}
+			/* Stagger the shard startups, pausing every 'session_start_max_concurrency' shards for 5 seconds.
+			 * This means that for bots that don't have large bot sharding, any number % 1 is always 0,
+			 * so it will pause after every shard. For any with non-zero concurrency it'll pause 5 seconds
+			 * after every batch.
+			 */
+			if (((s + 1) % g.session_start_max_concurrency) == 0) {
+				size_t wait_time = 5;
+				if (g.session_start_max_concurrency > 1) {
+					/* If large bot sharding, be sure to give the batch of shards time to settle */
+					bool all_connected = true;
+					do {
+						all_connected = true;
+						for (auto& shard : this->shards) {
+							if (!shard.second->ready) {
+								all_connected = false;
+								std::this_thread::sleep_for(std::chrono::milliseconds(100));
+								break;
+							}
+						}
+					} while (all_connected);
+				}
+				std::this_thread::sleep_for(std::chrono::seconds(wait_time));
+			}
+		}
+	}
+
+	/* Get all active DM channels and map them to user id -> dm id */
+	this->current_user_get_dms([this](const dpp::confirmation_callback_t& completion) {
+		dpp::channel_map dmchannels = std::get<channel_map>(completion.value);
+		for (auto & c : dmchannels) {
+			for (auto & u : c.second.recipients) {
+				this->set_dm_channel(u, c.second.id);
+			}
+		}
+	});
+
+	log(ll_debug, "Shards started.");
+	
+	if (!return_after)
+		block_calling_thread();
+}
+
+void cluster::shutdown() {
+	/* Signal condition variable to terminate */
+	terminating.notify_all();
+	/* Free memory for active timers */
+	for (auto & t : timer_list) {
+		delete t.second;
+	}
+	timer_list.clear();
+	/* Terminate shards */
+	for (const auto& sh : shards) {
+		log(ll_info, "Terminating shard id " + std::to_string(sh.second->shard_id));
+		delete sh.second;
+	}
+	shards.clear();
 }
 
 snowflake cluster::get_dm_channel(snowflake user_id) {
@@ -247,7 +269,7 @@ void cluster::post_rest(const std::string &endpoint, const std::string &major_pa
 			}
 			catch (const std::exception &e) {
 				/* TODO: Do something clever to handle malformed JSON */
-				log(ll_error, fmt::format("post_rest() to {}: {}", endpoint, e.what()));
+				log(ll_error, "post_rest() to " + endpoint + ": {}" + std::string(e.what()));
 				return;
 			}
 		}
@@ -267,7 +289,7 @@ void cluster::post_rest_multipart(const std::string &endpoint, const std::string
 			}
 			catch (const std::exception &e) {
 				/* TODO: Do something clever to handle malformed JSON */
-				log(ll_error, fmt::format("post_rest_multipart() to {}: {}", endpoint, e.what()));
+				log(ll_error, "post_rest_multipart() to " + endpoint + ": " + std::string(e.what()));
 				return;
 			}
 		}
@@ -316,6 +338,11 @@ cluster& cluster::set_audit_reason(const std::string &reason) {
 
 cluster& cluster::clear_audit_reason() {
 	audit_reason.clear();
+	return *this;
+}
+
+cluster& cluster::set_default_gateway(std::string &default_gateway_new) {
+	default_gateway = default_gateway_new;
 	return *this;
 }
 

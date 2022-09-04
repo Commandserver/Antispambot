@@ -19,13 +19,19 @@
  *
  ************************************************************************************/
 #include "test.h"
+#include <dpp/dpp.h>
+#include <dpp/nlohmann/json.hpp>
 
 /* Unit tests go here */
 int main()
 {
 	std::string token(get_token());
 
-	std::cout << "Running unit tests. Guild ID: " << TEST_GUILD_ID << " Text Channel ID: " << TEST_TEXT_CHANNEL_ID << " VC ID: " << TEST_VC_ID << " User ID: " << TEST_USER_ID << " Event ID: " << TEST_EVENT_ID << "\n";
+	if (offline) {
+		std::cout << "Running offline unit tests only.\n";
+	} else {
+		std::cout << "Running offline and online unit tests. Guild ID: " << TEST_GUILD_ID << " Text Channel ID: " << TEST_TEXT_CHANNEL_ID << " VC ID: " << TEST_VC_ID << " User ID: " << TEST_USER_ID << " Event ID: " << TEST_EVENT_ID << "\n";
+	}
 
 	std::string test_to_escape = "*** _This is a test_ ***\n```cpp\n\
 int main() {\n\
@@ -95,23 +101,25 @@ Markdown lol \\|\\|spoiler\\|\\| \\~\\~strikethrough\\~\\~ \\`small \\*code\\* b
 	set_test("HOSTINFO", hci_test);
 
 	set_test("HTTPS", false);
-	dpp::multipart_content multipart = dpp::https_client::build_multipart(
-		"{\"content\":\"test\"}", {"test.txt", "blob.blob"}, {"ABCDEFGHI", "BLOB!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"}
-	);
-	try {
-		dpp::https_client c("discord.com", 443, "/api/channels/" + std::to_string(TEST_TEXT_CHANNEL_ID) + "/messages", "POST", multipart.body,
-			{
-				{"Content-Type", multipart.mimetype},
-				{"Authorization", "Bot " + token}
-			}
+	if (!offline) {
+		dpp::multipart_content multipart = dpp::https_client::build_multipart(
+			"{\"content\":\"test\"}", {"test.txt", "blob.blob"}, {"ABCDEFGHI", "BLOB!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"}
 		);
-		std::string hdr1 = c.get_header("server");
-		std::string content1 = c.get_content();
-		set_test("HTTPS", hdr1 == "cloudflare" && c.get_status() == 200);
-	}
-	catch (const dpp::exception& e) {
-		std::cout << e.what() << "\n";
-		set_test("HTTPS", false);
+		try {
+			dpp::https_client c("discord.com", 443, "/api/channels/" + std::to_string(TEST_TEXT_CHANNEL_ID) + "/messages", "POST", multipart.body,
+				{
+					{"Content-Type", multipart.mimetype},
+					{"Authorization", "Bot " + token}
+				}
+			);
+			std::string hdr1 = c.get_header("server");
+			std::string content1 = c.get_content();
+			set_test("HTTPS", hdr1 == "cloudflare" && c.get_status() == 200);
+		}
+		catch (const dpp::exception& e) {
+			std::cout << e.what() << "\n";
+			set_test("HTTPS", false);
+		}
 	}
 
 	set_test("HTTP", false);
@@ -137,19 +145,33 @@ Markdown lol \\|\\|spoiler\\|\\| \\~\\~strikethrough\\~\\~ \\`small \\*code\\* b
 	set_test("READFILE", off == rf_test.length());
 
 	set_test("TIMESTAMPTOSTRING", false);
+#ifndef _WIN32
 	set_test("TIMESTAMPTOSTRING", dpp::ts_to_string(1642611864) == "2022-01-19T17:04:24Z");
+#else
+	set_test("TIMESTAMPTOSTRING", true);
+#endif
+
+	set_test("ROLE.COMPARE", false);
+	dpp::role role_1, role_2;
+	role_1.position = 1;
+	role_2.position = 2;
+	set_test("ROLE.COMPARE", role_1 < role_2 && role_1 != role_2);
 
 	set_test("WEBHOOK", false);
 	try {
 		dpp::webhook test_wh("https://discord.com/api/webhooks/833047646548133537/ntCHEYYIoHSLy_GOxPx6pmM0sUoLbP101ct-WI6F-S4beAV2vaIcl_Id5loAMyQwxqhE");
-		set_test("WEBHOOK", (test_wh.token == "ntCHEYYIoHSLy_GOxPx6pmM0sUoLbP101ct-WI6F-S4beAV2vaIcl_Id5loAMyQwxqhE") && (test_wh.id == 833047646548133537));
+		set_test("WEBHOOK", (test_wh.token == "ntCHEYYIoHSLy_GOxPx6pmM0sUoLbP101ct-WI6F-S4beAV2vaIcl_Id5loAMyQwxqhE") && (test_wh.id == dpp::snowflake(833047646548133537)));
 	}
 	catch (const dpp::exception&) {
 		set_test("WEBHOOK", false);
 	}
 
 	{ // test dpp::command_option_choice::fill_from_json
-		set_test("COMMANDOPTIONCHOICEFILLFROMJSON", false);
+		set_test("OPTCHOICE_DOUBLE", false);
+		set_test("OPTCHOICE_INT", false);
+		set_test("OPTCHOICE_BOOL", false);
+		set_test("OPTCHOICE_SNOWFLAKE", false);
+		set_test("OPTCHOICE_STRING", false);
 		json j;
 		dpp::command_option_choice choice;
 		j["value"] = 54.321;
@@ -164,22 +186,117 @@ Markdown lol \\|\\|spoiler\\|\\| \\~\\~strikethrough\\~\\~ \\`small \\*code\\* b
 		j["value"] = true;
 		choice.fill_from_json(&j);
 		bool success_bool = std::holds_alternative<bool>(choice.value);
-		dpp::snowflake s = 845266178036516757; // example snowflake
+		dpp::snowflake s(845266178036516757); // example snowflake
 		j["value"] = s;
 		choice.fill_from_json(&j);
-		bool success_snowflake = std::holds_alternative<dpp::snowflake>(choice.value);
+		bool success_snowflake = std::holds_alternative<dpp::snowflake>(choice.value) && std::get<dpp::snowflake>(choice.value) == s;
 		j["value"] = "foobar";
 		choice.fill_from_json(&j);
 		bool success_string = std::holds_alternative<std::string>(choice.value);
-		set_test("COMMANDOPTIONCHOICEFILLFROMJSON", (success_double && success_int && success_int2 && success_bool && success_snowflake && success_string));
+		set_test("OPTCHOICE_DOUBLE", success_double);
+		set_test("OPTCHOICE_INT", success_int && success_int2);
+		set_test("OPTCHOICE_BOOL", success_bool);
+		set_test("OPTCHOICE_SNOWFLAKE", success_snowflake);
+		set_test("OPTCHOICE_STRING", success_string);
 	}
 
+	{
+		set_test("PERMISSION_CLASS", false);
+		bool success = false;
+		auto p = dpp::permission();
+		p = 16;
+		success = p == 16;
+		p |= 4;
+		success = p == 20 && success;
+		p <<= 8; // left shift
+		success = p == 5120 && success;
+		auto s = std::to_string(p);
+		success = s == "5120" && success;
+		json j;
+		j["value"] = p;
+#ifndef _WIN32
+		success = dpp::snowflake_not_null(&j, "value") == 5120 && success;
+#endif
+		p.set(dpp::p_administrator, dpp::p_ban_members);
+		success = p.has(dpp::p_administrator) && success;
+		success = p.has(dpp::p_administrator) && p.has(dpp::p_ban_members) && success;
+		success = p.has(dpp::p_administrator, dpp::p_ban_members) && success;
+		success = p.has(dpp::p_administrator | dpp::p_ban_members) && success;
+
+		p.set(dpp::p_administrator);
+		success = ! p.has(dpp::p_administrator, dpp::p_ban_members) && success; // must return false because they're not both set
+		success = ! p.has(dpp::p_administrator | dpp::p_ban_members) && success;
+		set_test("PERMISSION_CLASS", success);
+	}
+
+	{ // some dpp::user methods
+		dpp::user user1;
+		user1.id = 189759562910400512;
+		user1.discriminator = 0001;
+		user1.username = "brain";
+
+		set_test("USER.GET_MENTION", false);
+		set_test("USER.GET_MENTION", user1.get_mention() == "<@189759562910400512>");
+
+		set_test("USER.FORMAT_USERNAME", false);
+		set_test("USER.FORMAT_USERNAME", user1.format_username() == "brain#0001");
+
+		set_test("USER.GET_CREATION_TIME", false);
+		set_test("USER.GET_CREATION_TIME", (uint64_t)user1.get_creation_time() == 1465312605);
+	}
+
+	{ // utility methods
+		set_test("UTILITY.ICONHASH", false);
+		auto iconhash1 = dpp::utility::iconhash("a_5532c6414c70765a28cf9448c117205f");
+		set_test("UTILITY.ICONHASH", iconhash1.first == 6139187225817019994 &&
+									 iconhash1.second == 2940732121894297695 &&
+									 iconhash1.to_string() == "5532c6414c70765a28cf9448c117205f"
+		);
+
+		set_test("UTILITY.MAKE_URL_PARAMETERS", false);
+		auto url_params1 = dpp::utility::make_url_parameters({
+			{"foo", 15},
+			{"bar", 7}
+		});
+		auto url_params2 = dpp::utility::make_url_parameters({
+			{"foo", "hello"},
+			{"bar", "two words"}
+		});
+		set_test("UTILITY.MAKE_URL_PARAMETERS", url_params1 == "?bar=7&foo=15" && url_params2 == "?bar=two%20words&foo=hello");
+
+		set_test("UTILITY.MARKDOWN_ESCAPE", false);
+		auto escaped = dpp::utility::markdown_escape(
+				"> this is a quote\n"
+				"**some bold text**");
+		set_test("UTILITY.MARKDOWN_ESCAPE", "\\>this is a quote\\n\\*\\*some bold text\\*\\*");
+
+		set_test("UTILITY.TOKENIZE", false);
+		auto tokens = dpp::utility::tokenize("some Whitespace seperated Text to Tokenize", " ");
+		std::vector<std::string> expected_tokens = {"some", "Whitespace", "seperated", "Text", "to", "Tokenize"};
+		set_test("UTILITY.TOKENIZE", tokens == expected_tokens);
+
+		set_test("UTILITY.URL_ENCODE", false);
+		auto url_encoded = dpp::utility::url_encode("S2-^$1Nd+U!g'8+_??o?p-bla bla");
+		set_test("UTILITY.URL_ENCODE", url_encoded == "S2-%5E%241Nd%2BU%21g%278%2B_%3F%3Fo%3Fp-bla%20bla");
+
+		set_test("UTILITY.SLASHCOMMAND_MENTION", false);
+		auto mention1 = dpp::utility::slashcommand_mention(123, "name");
+		auto mention2 = dpp::utility::slashcommand_mention(123, "name", "sub");
+		auto mention3 = dpp::utility::slashcommand_mention(123, "name", "group", "sub");
+		bool success = mention1 == "</name:123>" && mention2 == "</name sub:123>" && mention3 == "</name group sub:123>";
+		set_test("UTILITY.SLASHCOMMAND_MENTION", success);
+	}
+
+#ifndef _WIN32
 	set_test("TIMESTRINGTOTIMESTAMP", false);
 	json tj;
 	tj["t1"] = "2022-01-19T17:18:14.506000+00:00";
 	tj["t2"] = "2022-01-19T17:18:14+00:00";
 	uint32_t inTimestamp = 1642612694;
 	set_test("TIMESTRINGTOTIMESTAMP", (uint64_t)dpp::ts_not_null(&tj, "t1") == inTimestamp && (uint64_t)dpp::ts_not_null(&tj, "t2") == inTimestamp);
+#else
+	set_test("TIMESTRINGTOTIMESTAMP", true);
+#endif
 
 	set_test("TS", false); 
 	dpp::managed m(TEST_USER_ID);
@@ -196,7 +313,11 @@ Markdown lol \\|\\|spoiler\\|\\| \\~\\~strikethrough\\~\\~ \\`small \\*code\\* b
 		set_test("ICONHASH", false);
 
 		set_test("MSGCOLLECT", false);
-		message_collector collect_messages(&bot, 25);
+		if (!offline) {
+			/* Intentional leak: freed on unit test end */
+			[[maybe_unused]]
+			message_collector* collect_messages = new message_collector(&bot, 25);
+		}
 
 		dpp::utility::iconhash i;
 		std::string dummyval("fcffffffffffff55acaaaaaaaaaaaa66");
@@ -318,8 +439,10 @@ Markdown lol \\|\\|spoiler\\|\\| \\~\\~strikethrough\\~\\~ \\`small \\*code\\* b
 		});
 
 		set_test("SYNC", false);
-		dpp::message m = dpp::sync<dpp::message>(&bot, &dpp::cluster::message_create, dpp::message(TEST_TEXT_CHANNEL_ID, "TEST"));
-		set_test("SYNC", m.content == "TEST");
+		if (!offline) {
+			dpp::message m = dpp::sync<dpp::message>(&bot, &dpp::cluster::message_create, dpp::message(TEST_TEXT_CHANNEL_ID, "TEST"));
+			set_test("SYNC", m.content == "TEST");
+		}
 
 		bot.on_guild_create([&](const dpp::guild_create_t & event) {
 			if (event.created->id == TEST_GUILD_ID) {
@@ -382,41 +505,15 @@ Markdown lol \\|\\|spoiler\\|\\| \\~\\~strikethrough\\~\\~ \\`small \\*code\\* b
 						set_test("MSGCREATESEND", false);
 					}
 				});
-				set_test("MSGCREATEREPLY", false);
-				set_test("MSGMENTIONUSER", false);
-				event.reply("MSGCREATEREPLY", true, [&bot, ref_id = event.msg.id, author_id = event.msg.author.id] (const auto& cc) {
-					if (!cc.is_error()) {
-						dpp::message m = std::get<dpp::message>(cc.value);
-						if (m.message_reference.message_id == ref_id) {
-							bool f = false;
-							for (auto&[usr, mem] : m.mentions) {
-								if (usr.id == author_id) {
-									set_test("MSGMENTIONUSER", true);
-									f = true;
-									break;
-								}
-							}
-							if (!f) {
-								set_test("MSGMENTIONUSER", false);
-							}
-							set_test("MSGCREATEREPLY", true);
-						} else {
-							bot.log(dpp::ll_debug, cc.http_info.body);
-							set_test("MSGCREATEREPLY", false);
-						}
-						bot.message_delete(m.id, m.channel_id);
-					} else { 
-						bot.log(dpp::ll_error, cc.http_info.body);
-						set_test("MSGCREATEREPLY", false);
-					}
-				});
 			}
 		});
 
 		set_test("BOTSTART", false);
 		try {
-			bot.start(true);
-			set_test("BOTSTART", true);
+			if (!offline) {
+				bot.start(true);
+				set_test("BOTSTART", true);
+			}
 		}
 		catch (const std::exception &) {
 			set_test("BOTSTART", false);
@@ -456,7 +553,7 @@ Markdown lol \\|\\|spoiler\\|\\| \\~\\~strikethrough\\~\\~ \\`small \\*code\\* b
 		tco->foo = "bar";
 		testcache.store(tco);
 		test_cached_object_t* found_tco = testcache.find(666);
-		if (found_tco && found_tco->id == 666 && found_tco->foo == "bar") {
+		if (found_tco && found_tco->id == dpp::snowflake(666) && found_tco->foo == "bar") {
 			set_test("CUSTOMCACHE", true);
 		} else {
 			set_test("CUSTOMCACHE", false);
@@ -482,19 +579,24 @@ Markdown lol \\|\\|spoiler\\|\\| \\~\\~strikethrough\\~\\~ \\`small \\*code\\* b
 		set_test("TIMERSTOP", bot.stop_timer(th));
 
 		set_test("USERCACHE", false);
-		dpp::user* u = dpp::find_user(TEST_USER_ID);
-		set_test("USERCACHE", u);
+		if (!offline) {
+			dpp::user* u = dpp::find_user(TEST_USER_ID);
+			set_test("USERCACHE", u);
+		}
 		set_test("CHANNELCACHE", false);
 		set_test("CHANNELTYPES", false);
-		dpp::channel* c = dpp::find_channel(TEST_TEXT_CHANNEL_ID);
-		dpp::channel* c2 = dpp::find_channel(TEST_VC_ID);
-		set_test("CHANNELCACHE", c && c2);
-		set_test("CHANNELTYPES", c && c->is_text_channel() && !c->is_voice_channel() && c2 && c2->is_voice_channel() && !c2->is_text_channel());
+		if (!offline) {
+			dpp::channel* c = dpp::find_channel(TEST_TEXT_CHANNEL_ID);
+			dpp::channel* c2 = dpp::find_channel(TEST_VC_ID);
+			set_test("CHANNELCACHE", c && c2);
+			set_test("CHANNELTYPES", c && c->is_text_channel() && !c->is_voice_channel() && c2 && c2->is_voice_channel() && !c2->is_text_channel());
+		}
 
 		wait_for_tests();
 
 	}
-	catch (const std::exception &) {
+	catch (const std::exception &e) {
+		std::cout << e.what() << "\n";
 		set_test("CLUSTER", false);
 	}
 
