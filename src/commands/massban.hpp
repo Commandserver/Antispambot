@@ -15,7 +15,7 @@ void handle_massban(dpp::cluster& bot, const dpp::slashcommand_t& event) {
 
 	auto guild = dpp::find_guild(event.command.guild_id);
 	if (guild == nullptr) {
-		bot.log(dpp::ll_error, "guild not found");
+		bot.log(dpp::ll_error, "Internal error. Guild not found");
 		return;
 	}
 

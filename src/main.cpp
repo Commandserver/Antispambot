@@ -15,7 +15,7 @@
 #include "ConfigSet.h"
 #include "CachedGuildMember.h"
 
-#include "ConfirmationHandler.hpp"
+#include "ButtonHandler.hpp"
 
 #include "commands/info.hpp"
 #include "commands/manage.hpp"
