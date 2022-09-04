@@ -91,7 +91,7 @@ int main() {
 					definition_manage(),
 			};
 
-			bot.guild_bulk_command_create(commands, config["guild-id"], [&bot](const dpp::confirmation_callback_t &event) {
+			bot.guild_bulk_command_create(commands, static_cast<dpp::snowflake>(config["guild-id"]), [&bot](const dpp::confirmation_callback_t &event) {
 				if (event.is_error()) {
 					bot.log(dpp::ll_error, "error creating slash commands: " + event.http_info.body);
 				} else {
