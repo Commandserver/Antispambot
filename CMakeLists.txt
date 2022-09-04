@@ -14,7 +14,7 @@ add_executable(${PROJECT_NAME}
         src/utils.hpp
         src/ConfigSet.cpp
         src/ConfigSet.h
-        src/ConfirmationHandler.hpp
+        src/ButtonHandler.hpp
         src/JsonFile.cpp
         src/JsonFile.h
         src/CachedGuildMember.cpp

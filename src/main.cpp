@@ -85,8 +85,6 @@ int main() {
 	ConfigSet domainBlacklist("../domain-blacklist.txt");
 	ConfigSet forbiddenWords("../bad-words.txt");
 
-	JsonFile muteCounter("../counter.json"); /// Mute counter
-
 
 	bot.on_ready([&bot, &config](const dpp::ready_t &event) {
 		bot.log(dpp::ll_info, "Logged in as " + bot.me.username + "! Using " + dpp::utility::version());
@@ -95,7 +93,6 @@ int main() {
 			std::vector<dpp::slashcommand> commands = {
 					definition_info(),
 					definition_manage(),
-					definition_massban(),
 			};
 
 			bot.guild_bulk_command_create(commands, config["guild-id"], [&bot](const dpp::confirmation_callback_t &event) {
@@ -109,19 +106,12 @@ int main() {
 	});
 
 
-	bot.on_slashcommand([&domainBlacklist, &forbiddenWords, &bypassConfig, &bot, &muteCounter](const dpp::slashcommand_t &event) {
+	bot.on_slashcommand([&domainBlacklist, &forbiddenWords, &bypassConfig, &bot](const dpp::slashcommand_t &event) {
 		if (event.command.get_command_name() == "manage") {
 			handle_manage(bot, event, domainBlacklist, forbiddenWords, bypassConfig);
 		} else if (event.command.get_command_name() == "info") {
-			handle_info(bot, event, muteCounter);
-		} else if (event.command.get_command_name() == "massban") {
-			handle_massban(bot, event);
+			handle_info(bot, event);
 		}
-	});
-
-
-	bot.on_button_click([](const dpp::button_click_t &event) {
-		callComponent(event);
 	});
 
 
@@ -303,7 +293,7 @@ int main() {
 	dpp::cache<dpp::message> message_cache;
 
 
-	bot.on_message_create([&bot, &log, &message_cache, &domainBlacklist, &forbiddenWords, &config, &bypassConfig, &muteCounter](const dpp::message_create_t &event) {
+	bot.on_message_create([&bot, &log, &message_cache, &domainBlacklist, &forbiddenWords, &config, &bypassConfig](const dpp::message_create_t &event) {
 		/*
 		 * Do nothing when:
 		 * - from a bot
@@ -318,6 +308,12 @@ int main() {
 			return;
 		}
 
+		// do nothing when whitelisted channel
+		for (auto &id : config["excluded_channel_ids"]) {
+			if (event.msg.channel_id == static_cast<dpp::snowflake>(id)) {
+				return;
+			}
+		}
 		// do nothing when whitelisted category
 		auto *channel = dpp::find_channel(event.msg.channel_id);
 		if (channel and channel->parent_id) {
@@ -401,12 +397,12 @@ int main() {
 						for (auto &s: domainBlacklist.get_container()) {
 							if (s.rfind('.', 0) == 0 and endsWith(domain, s)) { // if it's a top level domain
 								log->debug("blacklisted top-level-domain: " + domain);
-								mitigateSpam(bot, message_cache, config, muteCounter, event.msg,
+								mitigateSpam(bot, message_cache, config, event.msg,
 											 fmt::format("Blacklisted top-level-domain: `{}`", domain), DAY * 27, true);
 								return;
 							} else if (s == domain) {
 								log->debug("blacklisted domain: " + domain);
-								mitigateSpam(bot, message_cache, config, muteCounter, event.msg,
+								mitigateSpam(bot, message_cache, config, event.msg,
 											 fmt::format("Blacklisted domain: `{}`", domain), DAY * 27, true);
 								return;
 							}
@@ -418,7 +414,7 @@ int main() {
 				for (const std::string ext : config["forbidden-file-extensions"]) {
 					if (endsWith(URL, ext)) {
 						log->debug("forbidden extension: " + ext);
-						mitigateSpam(bot, message_cache, config, muteCounter, event.msg,
+						mitigateSpam(bot, message_cache, config, event.msg,
 									 fmt::format("Forbidden file extension in URL: `{}`", ext), DAY * 27, true);
 						return;
 					}
@@ -440,21 +436,8 @@ int main() {
 					if (message.find(" " + forbiddenWord) != std::string::npos or message.find(forbiddenWord + " ") != std::string::npos or
 					message.rfind(forbiddenWord, 0) == 0 or endsWith(message, forbiddenWord)) { // search the bad word in the message
 						log->debug("bad word: " + forbiddenWord);
-						mitigateSpam(bot, message_cache, config, muteCounter, event.msg,
+						mitigateSpam(bot, message_cache, config, event.msg,
 									 fmt::format("Use of a bad word: `{}`", forbiddenWord), 660, false);
-						// send feedback message
-						bot.message_create(
-								dpp::message()
-										.set_channel_id(event.msg.channel_id)
-										.add_embed(
-												dpp::embed()
-												.set_description("**Reason:** Bad word usage")
-												.set_author(fmt::format("{} got a timeout", event.msg.author.format_username()),
-															"",
-															event.msg.author.get_avatar_url()
-										)
-								)
-						);
 						return;
 					}
 				}
@@ -464,7 +447,7 @@ int main() {
 		// to many urls in general
 		if (urlCount > 8) {
 			log->debug("too many urls");
-			mitigateSpam(bot, message_cache, config, muteCounter, event.msg,
+			mitigateSpam(bot, message_cache, config, event.msg,
 						 "Too many URLs", DAY * 27, true);
 			return;
 		}
@@ -472,7 +455,7 @@ int main() {
 		// too many mentions
 		if (event.msg.mentions.size() > 6) {
 			log->debug("too many mentions in one message");
-			mitigateSpam(bot, message_cache, config, muteCounter, event.msg,
+			mitigateSpam(bot, message_cache, config, event.msg,
 						 "Mass ping", DAY * 14, false);
 			return;
 		}
@@ -481,7 +464,7 @@ int main() {
 		if (urlCount >= 1 and (event.msg.content.find("@everyone") != std::string::npos or
 							   event.msg.content.find("@here") != std::string::npos)) {
 			log->debug("url with @everyone-mention");
-			mitigateSpam(bot, message_cache, config, muteCounter, event.msg,
+			mitigateSpam(bot, message_cache, config, event.msg,
 						 "Message contains URL and @everyone", DAY * (inviteCount >= 1 ? 27 : 14), true);
 			return;
 		}
@@ -491,7 +474,7 @@ int main() {
 			for (const std::string ext : config["forbidden-file-extensions"]) {
 				if (endsWith(attachment.filename, ext)) {
 					log->debug("forbidden file extension: " + ext);
-					mitigateSpam(bot, message_cache, config, muteCounter, event.msg,
+					mitigateSpam(bot, message_cache, config, event.msg,
 								 fmt::format("Forbidden file extension: `{}`", ext), DAY * 27, true);
 					return;
 				}
@@ -612,7 +595,7 @@ int main() {
 			for (auto &s : same_messages_in_different_channels) {
 				channelMentions += fmt::format("<#{}>", s->channel_id);
 			}
-			mitigateSpam(bot, message_cache, config, muteCounter, event.msg,
+			mitigateSpam(bot, message_cache, config, event.msg,
 						 fmt::format("Crossposted message in {} Channels:||{}||",
 									 same_messages_in_different_channels.size(), channelMentions), DAY * (urlCount >= 1 ? 27 : 14), true); // maximum mute duration if contains url
 			return;
@@ -620,27 +603,21 @@ int main() {
 
 		// too many repeated messages in the same channel
 		if (same_messages_in_same_channel.size() >= 4) {
-			// do nothing when whitelisted channel
-			for (auto &id : config["excluded_channel_ids"]) {
-				if (event.msg.channel_id == static_cast<dpp::snowflake>(id)) {
-					return;
-				}
-			}
-			mitigateSpam(bot, message_cache, config, muteCounter, event.msg,
+			mitigateSpam(bot, message_cache, config, event.msg,
 						 "Repeated message 4 times", DAY * (urlCount >= 1 ? 27 : 8), true); // maximum mute duration if contains url
 			return;
 		}
 
 		// same attachment or sticker sent somewhere
 		if (same_attachment.size() >= 4) {
-			mitigateSpam(bot, message_cache, config, muteCounter, event.msg,
+			mitigateSpam(bot, message_cache, config, event.msg,
 						 "Repeated attachment 4 times", DAY * 7, true);
 			return;
 		}
 
 		if (mention_count > 20) {
 			log->debug("too many mentions in multiple messages");
-			mitigateSpam(bot, message_cache, config, muteCounter, event.msg,
+			mitigateSpam(bot, message_cache, config, event.msg,
 						 "Too many mentions through multiple messages", DAY * 27, true);
 			return;
 		}
@@ -651,7 +628,7 @@ int main() {
 			for (auto &id : different_channel_ids) {
 				channelMentions += "<#" + std::to_string(id) + ">";
 			}
-			mitigateSpam(bot, message_cache, config, muteCounter, event.msg,
+			mitigateSpam(bot, message_cache, config, event.msg,
 						 fmt::format("Sent messages in a shorter time in {} Channels:||{}||",
 									 different_channel_ids.size(), channelMentions), DAY * (urlCount >= 1 ? 27 : 1), true); // maximum mute duration if contains url
 			return;
@@ -660,14 +637,14 @@ int main() {
 		// too many discord-invitations in one message
 		if (inviteCount > 4 or inviteCodes.size() > 2) {
 			log->debug("too many invites");
-			mitigateSpam(bot, message_cache, config, muteCounter, event.msg,
+			mitigateSpam(bot, message_cache, config, event.msg,
 						 "Too many invitations", DAY * 27, true);
 			return;
 		} else {
 			// check for invitation to another server
 			for (const std::string &inviteCode: inviteCodes) {
 				log->debug("invite code: " + inviteCode);
-				bot.invite_get(inviteCode, [guild_id = event.msg.guild_id, &config, &bot, msg = event.msg, &message_cache, &muteCounter](const dpp::confirmation_callback_t &e) {
+				bot.invite_get(inviteCode, [guild_id = event.msg.guild_id, &config, &bot, msg = event.msg, &message_cache](const dpp::confirmation_callback_t &e) {
 					if (!e.is_error()) {
 						auto invite = std::get<dpp::invite>(e.value);
 						if (invite.guild_id == guild_id) {
@@ -681,7 +658,7 @@ int main() {
 
 					int muteDuration = DAY * 27;
 
-					muteMember(bot, muteCounter, muteDuration, msg.guild_id, msg.author.id);
+					muteMember(bot, muteDuration, msg.guild_id, msg.author.id);
 
 					dpp::embed embed; // create the embed log message
 					embed.set_color(0xff6600);
