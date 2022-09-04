@@ -93,11 +93,13 @@ int main() {
 			std::vector<dpp::slashcommand> commands = {
 					definition_info(),
 					definition_manage(),
+					definition_massban(),
 			};
 
-			bot.guild_bulk_command_create(commands, config["guild-id"], [&bot](const dpp::confirmation_callback_t &event) {
+			bot.guild_bulk_command_create(commands, static_cast<dpp::snowflake>(config["guild-id"]), [&bot](const dpp::confirmation_callback_t &event) {
 				if (event.is_error()) {
-					bot.log(dpp::ll_error, "error creating slash commands: " + event.http_info.body);
+					bot.log(dpp::ll_error,
+							"error creating slash commands: " + event.http_info.body);
 				} else {
 					bot.log(dpp::ll_info, "success creating slash commands");
 				}
@@ -111,6 +113,8 @@ int main() {
 			handle_manage(bot, event, domainBlacklist, forbiddenWords, bypassConfig);
 		} else if (event.command.get_command_name() == "info") {
 			handle_info(bot, event);
+		} else if (event.command.get_command_name() == "massban") {
+			handle_massban(bot, event);
 		}
 	});
 
