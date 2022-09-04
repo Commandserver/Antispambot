@@ -2,8 +2,8 @@
 
 dpp::slashcommand definition_info() {
 	return dpp::slashcommand()
-	.set_name("info")
-	.set_description("Information about this bot");
+			.set_name("info")
+			.set_description("Information about this bot");
 }
 
 void handle_info(dpp::cluster& bot, const dpp::slashcommand_t& event, JsonFile& muteCounter) {
