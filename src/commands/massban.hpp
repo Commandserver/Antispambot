@@ -15,7 +15,8 @@ void handle_massban(dpp::cluster& bot, const dpp::slashcommand_t& event) {
 
 	auto guild = dpp::find_guild(event.command.guild_id);
 	if (guild == nullptr) {
-		bot.log(dpp::ll_error, "Internal error. Guild not found");
+		bot.log(dpp::ll_error, "Guild not found");
+		event.reply("Oopsie Woopsie. Uwu we made a fucky wucky!");
 		return;
 	}
 
@@ -99,6 +100,7 @@ void handle_massban(dpp::cluster& bot, const dpp::slashcommand_t& event) {
 				.set_style(dpp::cos_danger);
 
 		bindComponentAction(confirm_component, [&bot, users_to_ban, guild_id = event.command.guild_id, channel_id = event.command.channel_id](const dpp::button_click_t &event) {
+			// TODO check permissions
 			event.reply(
 					dpp::message("Mass ban started! Please wait...")
 			);
@@ -117,7 +119,7 @@ void handle_massban(dpp::cluster& bot, const dpp::slashcommand_t& event) {
 						failures.insert(id);
 						continue;
 					}
-					bot.log(dpp::ll_error, "mass banned user id " + std::to_string(id));
+					bot.log(dpp::ll_info, "mass banned user id " + std::to_string(id));
 					success.insert(id);
 				}
 

@@ -5,16 +5,16 @@
 /**
  * Holds the callback for a stored component which will be executed when e.g. a button got clicked
  */
-struct ComponentContainer {
+struct ButtonContainer {
 	std::function<void(const dpp::button_click_t &)> function;
 	time_t created_at;
 	bool only_one;
 
-	ComponentContainer() : created_at(time(nullptr)), only_one(true) {}
+	ButtonContainer() : created_at(time(nullptr)), only_one(true) {}
 };
 
 
-std::unordered_map<uint64_t, ComponentContainer> cachedActions;
+std::unordered_map<uint64_t, ButtonContainer> cachedActions;
 
 std::shared_mutex cachedActionsMutex;
 
@@ -52,7 +52,7 @@ void bindComponentAction(dpp::component &component, const std::function<void(con
 		if (existing == cachedActions.end()) {
 			component.custom_id = std::to_string(custom_id); // overwrite the custom_id from the given component
 
-			ComponentContainer container;
+			ButtonContainer container;
 			container.function = function;
 			container.only_one = only_one;
 			cachedActions[custom_id] = container;
