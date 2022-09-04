@@ -96,10 +96,9 @@ int main() {
 					definition_massban(),
 			};
 
-			bot.guild_bulk_command_create(commands, static_cast<dpp::snowflake>(config["guild-id"]), [&bot](const dpp::confirmation_callback_t &event) {
+			bot.guild_bulk_command_create(commands, config["guild-id"].get<std::uint64_t>(), [&bot](const dpp::confirmation_callback_t &event) {
 				if (event.is_error()) {
-					bot.log(dpp::ll_error,
-							"error creating slash commands: " + event.http_info.body);
+					bot.log(dpp::ll_error, "error creating slash commands: " + event.http_info.body);
 				} else {
 					bot.log(dpp::ll_info, "success creating slash commands");
 				}
@@ -120,7 +119,7 @@ int main() {
 
 
 	// set a rate limit on all threads to prevent spam in threads
-	const uint16_t thread_rate_limit = config["thread-rate-limit"];
+	const uint16_t thread_rate_limit = config["thread-rate-limit"].get<std::uint16_t>();
 	if (thread_rate_limit > 0) {
 		bot.on_thread_create([&bot, &thread_rate_limit](const dpp::thread_create_t &event) {
 			auto t = event.created;
@@ -218,7 +217,7 @@ int main() {
 			embed.set_description(memberStr);
 			dpp::message msg("@everyone");
 			msg.allowed_mentions.parse_everyone = true;
-			msg.channel_id = static_cast<dpp::snowflake>(config["log-channel-id"]);
+			msg.channel_id = config["log-channel-id"].get<std::uint64_t>();
 			msg.add_embed(embed);
 			bot.message_create(msg, [&log](const dpp::confirmation_callback_t &c) {
 				if (c.is_error()) {
@@ -237,7 +236,7 @@ int main() {
 
 	bot.on_guild_member_add([&](const dpp::guild_member_add_t &event) {
 		/* continue only on the correct guild */
-		if (event.adding_guild->id != config["guild-id"]) return;
+		if (event.adding_guild->id != config["guild-id"].get<std::uint64_t>()) return;
 
 		/* add the member to the cache */
 		{
@@ -314,7 +313,7 @@ int main() {
 
 		// do nothing when whitelisted channel
 		for (auto &id : config["excluded_channel_ids"]) {
-			if (event.msg.channel_id == static_cast<dpp::snowflake>(id)) {
+			if (event.msg.channel_id == id.get<std::uint64_t>()) {
 				return;
 			}
 		}
@@ -322,7 +321,7 @@ int main() {
 		auto *channel = dpp::find_channel(event.msg.channel_id);
 		if (channel and channel->parent_id) {
 			for (auto &id: config["excluded_category_ids"]) {
-				if (channel->parent_id == static_cast<dpp::snowflake>(id)) {
+				if (channel->parent_id == id.get<std::uint64_t>()) {
 					return;
 				}
 			}
