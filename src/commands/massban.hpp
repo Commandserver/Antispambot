@@ -99,7 +99,7 @@ void handle_massban(dpp::cluster& bot, const dpp::slashcommand_t& event) {
 				.set_type(dpp::cot_button)
 				.set_style(dpp::cos_danger);
 
-		bindComponentAction(confirm_component, [&bot, users_to_ban, guild_id = event.command.guild_id, channel_id = event.command.channel_id](const dpp::button_click_t &event) {
+		ButtonHandler::bind(confirm_component, [&bot, users_to_ban, guild_id = event.command.guild_id, channel_id = event.command.channel_id](const dpp::button_click_t &event) {
 			// TODO check permissions
 			event.reply(
 					dpp::message("Mass ban started! Please wait...")
@@ -165,7 +165,7 @@ void handle_massban(dpp::cluster& bot, const dpp::slashcommand_t& event) {
 				.set_type(dpp::cot_button)
 				.set_style(dpp::cos_secondary);
 
-		bindComponentAction(cancel_confirm, [](const dpp::button_click_t &event) {
+		ButtonHandler::bind(cancel_confirm, [](const dpp::button_click_t &event) {
 			event.reply(
 					dpp::interaction_response_type::ir_update_message,
 					dpp::message()

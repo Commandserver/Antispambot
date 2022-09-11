@@ -118,6 +118,11 @@ int main() {
 	});
 
 
+	bot.on_button_click([](const dpp::button_click_t &event) {
+		ButtonHandler::call(event);
+	});
+
+
 	// set a rate limit on all threads to prevent spam in threads
 	const uint16_t thread_rate_limit = config["thread-rate-limit"].get<std::uint16_t>();
 	if (thread_rate_limit > 0) {
