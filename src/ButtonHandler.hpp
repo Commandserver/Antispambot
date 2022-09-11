@@ -9,9 +9,10 @@
 /**
  * Holds the callback for a stored component which will be executed later when a component is triggered
  */
-struct ButtonContainer {
-	std::function<void(const dpp::button_click_t &)> function;
+class ButtonContainer {
 	time_t created_at;
+public:
+	std::function<void(const dpp::button_click_t &)> function;
 	bool only_one;
 
 	ButtonContainer() : created_at(time(nullptr)), only_one(true) {}
