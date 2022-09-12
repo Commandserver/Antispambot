@@ -8,12 +8,12 @@
 /**
  * Holds the callback for a stored component which will be executed later when a component is triggered
  */
-struct ButtonContainer {
+struct ButtonSession {
 	time_t created_at;
 	std::function<void(const dpp::button_click_t &)> function;
 	bool only_one;
 
-	ButtonContainer() : created_at(time(nullptr)), only_one(true) {}
+	ButtonSession() : created_at(time(nullptr)), only_one(true) {}
 
 	/**
 	 * Whether the callback is expired and can be removed from the cache
@@ -29,7 +29,7 @@ struct ButtonContainer {
  */
 class ButtonHandler {
 	/// cached components with their callbacks. Identified by the custom_id
-	static std::unordered_map<uint64_t, ButtonContainer> cachedActions;
+	static std::unordered_map<uint64_t, ButtonSession> cachedActions;
 	/// cache mutex
 	static std::shared_mutex cachedActionsMutex;
 	/// incrementing custom_id counter
@@ -66,21 +66,21 @@ public:
 			if (!customIdAlreadyExists) {
 				component.custom_id = std::to_string(customIdCounter); // overwrite the custom_id from the given component
 
-				ButtonContainer container;
-				container.function = function;
-				container.only_one = only_one;
-				component.custom_id += COMPONENT_SPACER + std::to_string(static_cast<long int>(container.created_at)); // add creation time to the custom_id
-				cachedActions[customIdCounter] = container;
+				ButtonSession session;
+				session.function = function;
+				session.only_one = only_one;
+				component.custom_id += COMPONENT_SPACER + std::to_string(static_cast<long int>(session.created_at)); // add creation time to the custom_id
+				cachedActions[customIdCounter] = session;
 				customIdAlreadyExists = false; // break
 			}
 		} while (customIdAlreadyExists);
 	}
 
 	/**
- 	 * call this in cluster::on_button_click
+ 	 * call this in dpp::cluster::on_button_click
      * @param event the dpp::button_click_t event
      */
-	static void call(const dpp::button_click_t &event) {
+	static void handle(const dpp::button_click_t &event) {
 		// parse id and creation time
 		uint64_t customId;
 		time_t creationTimestamp;
@@ -114,6 +114,6 @@ public:
 
 };
 
-std::unordered_map<uint64_t, ButtonContainer> ButtonHandler::cachedActions;
+std::unordered_map<uint64_t, ButtonSession> ButtonHandler::cachedActions;
 std::shared_mutex ButtonHandler::cachedActionsMutex;
 uint64_t ButtonHandler::customIdCounter;

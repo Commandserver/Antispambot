@@ -119,7 +119,7 @@ int main() {
 
 
 	bot.on_button_click([](const dpp::button_click_t &event) {
-		ButtonHandler::call(event);
+		ButtonHandler::handle(event);
 	});
 
 
