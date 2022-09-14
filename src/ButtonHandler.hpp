@@ -6,42 +6,43 @@
 #define CUSTOM_ID_SPACER "###"
 
 /**
- * Holds the callback for a stored component which will be executed later when a component is triggered
- */
-struct ButtonSession {
-	time_t created_at;
-	std::function<void(const dpp::button_click_t &)> function;
-	bool only_one;
-
-	ButtonSession() : created_at(time(nullptr)), only_one(true) {}
-
-	/**
-	 * Whether the callback is expired and can be removed from the cache
-	 */
-	bool isExpired() const {
-		return difftime(time(nullptr), created_at) > COMPONENT_CACHE_DURATION;
-	}
-};
-
-/**
- * A static handler to attach functions to a specific component to reply later when the component get triggered.
+ * Handler to attach functions to a specific component to reply later when the component get triggered.
  * The handler will hold added components for 10 minutes
  */
-class ButtonHandler {
+namespace ButtonHandler {
+
+	/**
+	 * Holds the callback for a stored component which will be executed later when a component is triggered
+	 */
+	struct ButtonSession {
+		time_t created_at;
+		std::function<void(const dpp::button_click_t &)> function;
+		bool only_one;
+
+		ButtonSession() : created_at(time(nullptr)), only_one(true) {}
+
+		/**
+		 * Whether the callback is expired and can be removed from the cache
+		 */
+		bool isExpired() const {
+			return difftime(time(nullptr), created_at) > COMPONENT_CACHE_DURATION;
+		}
+	};
+
 	/// cached components with their callbacks. Identified by the custom_id
-	static std::unordered_map<uint64_t, ButtonSession> cachedActions;
+	std::unordered_map<uint64_t, ButtonSession> cachedActions;
 	/// cache mutex
-	static std::shared_mutex cachedActionsMutex;
+	std::shared_mutex cachedActionsMutex;
 	/// incrementing custom_id counter
-	static uint64_t customIdCounter;
-public:
+	uint64_t customIdCounter;
+
 	/**
      * Set a callback to respond to a component. The function will overwrite the custom_id of the component!
      * @param component component to execute the function for when its triggered. It'll set the custom_id of the component to its internal counter
      * @param function callback to execute when the component got triggered
      * @param only_one If true, the callback can be called only once and will be then removed from the cache
      */
-	static void bind(dpp::component &component, const std::function<void(const dpp::button_click_t &)> &function, bool only_one = true) {
+	void bind(dpp::component &component, const std::function<void(const dpp::button_click_t &)> &function, bool only_one = true) {
 		std::unique_lock l(cachedActionsMutex);
 
 		// remove too old ones
@@ -80,7 +81,7 @@ public:
  	 * call this in dpp::cluster::on_button_click
      * @param event the dpp::button_click_t event
      */
-	static void handle(const dpp::button_click_t &event) {
+	void handle(const dpp::button_click_t &event) {
 		// parse id and creation time
 		uint64_t customId;
 		time_t creationTimestamp;
@@ -112,8 +113,4 @@ public:
 		}
 	}
 
-};
-
-std::unordered_map<uint64_t, ButtonSession> ButtonHandler::cachedActions;
-std::shared_mutex ButtonHandler::cachedActionsMutex;
-uint64_t ButtonHandler::customIdCounter;
+}
