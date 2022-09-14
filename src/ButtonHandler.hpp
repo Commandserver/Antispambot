@@ -14,12 +14,12 @@ namespace ButtonHandler {
 	/**
 	 * Holds the callback for a stored component which will be executed later when a component is triggered
 	 */
-	struct ButtonSession {
+	struct Session {
 		time_t created_at;
 		std::function<void(const dpp::button_click_t &)> function;
 		bool only_one;
 
-		ButtonSession() : created_at(time(nullptr)), only_one(true) {}
+		Session() : created_at(time(nullptr)), only_one(true) {}
 
 		/**
 		 * Whether the callback is expired and can be removed from the cache
@@ -30,7 +30,7 @@ namespace ButtonHandler {
 	};
 
 	/// cached components with their callbacks. Identified by the custom_id
-	std::unordered_map<uint64_t, ButtonSession> cachedActions;
+	std::unordered_map<uint64_t, Session> cachedActions;
 	/// cache mutex
 	std::shared_mutex cachedActionsMutex;
 	/// incrementing custom_id counter
@@ -67,7 +67,7 @@ namespace ButtonHandler {
 			if (!customIdAlreadyExists) {
 				component.custom_id = std::to_string(customIdCounter); // overwrite the custom_id from the given component
 
-				ButtonSession session;
+				Session session;
 				session.function = function;
 				session.only_one = only_one;
 				component.custom_id += CUSTOM_ID_SPACER + std::to_string(static_cast<long int>(session.created_at)); // add creation time to the custom_id
