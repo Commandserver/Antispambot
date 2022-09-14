@@ -3,7 +3,7 @@
 #include <dpp/dpp.h>
 
 #define COMPONENT_CACHE_DURATION 60 * 10
-#define COMPONENT_SPACER "###"
+#define CUSTOM_ID_SPACER "###"
 
 /**
  * Holds the callback for a stored component which will be executed later when a component is triggered
@@ -69,7 +69,7 @@ public:
 				ButtonSession session;
 				session.function = function;
 				session.only_one = only_one;
-				component.custom_id += COMPONENT_SPACER + std::to_string(static_cast<long int>(session.created_at)); // add creation time to the custom_id
+				component.custom_id += CUSTOM_ID_SPACER + std::to_string(static_cast<long int>(session.created_at)); // add creation time to the custom_id
 				cachedActions[customIdCounter] = session;
 				customIdAlreadyExists = false; // break
 			}
@@ -85,9 +85,9 @@ public:
 		uint64_t customId;
 		time_t creationTimestamp;
 		try {
-			std::string id = event.custom_id.substr(0, event.custom_id.find(COMPONENT_SPACER));
+			std::string id = event.custom_id.substr(0, event.custom_id.find(CUSTOM_ID_SPACER));
 			std::string creation = event.custom_id.substr(
-					event.custom_id.find(COMPONENT_SPACER) + std::strlen(COMPONENT_SPACER),
+					event.custom_id.find(CUSTOM_ID_SPACER) + std::strlen(CUSTOM_ID_SPACER),
 					std::string::npos
 			);
 			customId = std::stoul(id);
