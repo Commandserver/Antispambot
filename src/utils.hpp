@@ -15,6 +15,16 @@ bool endsWith(const std::string &mainStr, const std::string &toMatch) {
 
 
 /**
+ * Format a time_t object to a human readable %Y-%m-%d %H:%M:%S time format
+ */
+std::string formatTime(const time_t &time) {
+	char buff[20];
+	strftime(buff, sizeof(buff), "%Y-%m-%d %H:%M:%S", localtime(&time));
+	return buff;
+}
+
+
+/**
  * Make a readable time-string from seconds
  * @param seconds The amount of seconds to create a time-string for
  * @return The formatted time-string

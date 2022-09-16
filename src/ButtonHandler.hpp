@@ -82,7 +82,7 @@ namespace ButtonHandler {
      * @param event the dpp::button_click_t event
      */
 	void handle(const dpp::button_click_t &event) {
-		// parse id and creation time
+		// parse id and creation time from the event's custom_id
 		uint64_t customId;
 		time_t creationTimestamp;
 		try {

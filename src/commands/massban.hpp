@@ -55,40 +55,26 @@ void handle_massban(dpp::cluster& bot, const dpp::slashcommand_t& event) {
 
 	std::set<dpp::snowflake> users_to_ban = {first->user_id, last->user_id};
 
-	// find the users to ban
+	std::string file = "| User ID\t\t| Account creation\t| Joined\t\t| Username\n";
+
+	// find the users to ban and create the preview file
 	for (const auto& m : guild->members) {
 		if (m.second.joined_at >= first->joined_at && m.second.joined_at <= last->joined_at) {
 			users_to_ban.insert(m.second.user_id);
+
+			// add member to the file which is then send with the reply
+			auto creation = static_cast<time_t>(m.first.get_creation_time());
+			file += std::to_string(m.first) + "\t" + formatTime(creation) + "\t" + formatTime(m.second.joined_at);
+			auto user = dpp::find_user(m.first);
+			if (user) {
+				file += "\t" + user->username;
+			}
+			file += "\n";
 		}
 	}
+	// TODO max length the file to 8 MB
 
-	{
-		// create response
-		std::string description;
-		bool interactionAlreadyAcknowledged = false;
-
-		std::function<void()> send = [&](){
-			dpp::message m = dpp::message().add_embed(dpp::embed().set_description(description).set_title("Username | Account creation"));
-			if (interactionAlreadyAcknowledged) {
-				bot.message_create(m.set_channel_id(event.command.channel_id));
-			} else {
-				interactionAlreadyAcknowledged = true;
-				event.reply(m);
-			}
-			description = "";
-		};
-		for (const dpp::snowflake& id : users_to_ban) {
-			const dpp::managed managedObj(id);
-			std::string s_to_add = fmt::format("<@{}> {}\n", id, dpp::utility::timestamp((time_t)managedObj.get_creation_time(), dpp::utility::tf_short_datetime));
-
-			// make sure to not exceed message limits
-			if (description.size() + s_to_add.size() > 4000) {
-				send();
-			}
-			description += s_to_add;
-		}
-		send();
-	}
+	bot.log(dpp::ll_debug, "File size: " + std::to_string(file.size() * sizeof(std::string::value_type)));
 
 
 	// send confirm buttons
@@ -109,10 +95,11 @@ void handle_massban(dpp::cluster& bot, const dpp::slashcommand_t& event) {
 
 			std::set<dpp::snowflake> success;
 			std::set<dpp::snowflake> failures;
+			std::string banReason = "mass ban at " + formatTime(time(nullptr));
 
 			for (const auto& id : users_to_ban) {
 				try {
-					bot.set_audit_reason("mass ban").guild_ban_add_sync(guild_id, id);
+					bot.set_audit_reason(banReason).guild_ban_add_sync(guild_id, id);
 				} catch (dpp::rest_exception &exception) {
 					bot.log(dpp::ll_error, "couldn't mass ban user id " + std::to_string(id));
 					failures.insert(id);
@@ -127,34 +114,31 @@ void handle_massban(dpp::cluster& bot, const dpp::slashcommand_t& event) {
 			bot.log(dpp::ll_info, fmt::format("success mass banned {} users", success.size()));
 
 			// create discord response
-			std::string failures_mentions;
-			for (const auto& id : failures) {
-				failures_mentions += fmt::format("<@{}>", id);
+			dpp::embed embed;
+			embed.set_title("Mass ban finished!");
+			embed.add_field("Successfully banned", fmt::format("**{}** / {}", success.size(), users_to_ban.size()),true);
+			embed.add_field("Failures", fmt::format("**{}** / {}", failures.size(), users_to_ban.size()), true);
+			if (success.size() == users_to_ban.size()) {
+				embed.set_description(":white_check_mark: looks good!");
 			}
 			dpp::message m;
 			m.set_channel_id(channel_id);
-			m.add_embed(dpp::embed().set_title("Mass ban finished!")
-								.add_field("successfully banned", fmt::format("**{}** / {}", success.size(), users_to_ban.size()), true)
-								.add_field("failures", fmt::format("**{}**\n{}", failures.size(), failures_mentions), true)
-			);
-			bot.message_create_sync(m);
-			// send a file containing all banned user ids
-			auto filesMsg = dpp::message().set_channel_id(channel_id);
+			m.add_embed(embed);
 			if (!success.empty()) {
 				std::string users;
 				for (const auto &id: success) {
-					users += fmt::format("{}\n", id);
+					users += std::to_string(id) + "\n";
 				}
-				filesMsg.add_file("banned-users.txt", users);
+				m.add_file("successfully-banned-users.txt", users);
 			}
 			if (!failures.empty()) {
 				std::string users;
 				for (const auto &id: failures) {
-					users += fmt::format("{}\n", id);
+					users += std::to_string(id) + "\n";
 				}
-				filesMsg.add_file("failed-users.txt", users);
+				m.add_file("failed-user-bans.txt", users);
 			}
-			bot.message_create_sync(filesMsg);
+			bot.message_create_sync(m);
 		});
 		t.detach();
 	});
@@ -190,5 +174,5 @@ void handle_massban(dpp::cluster& bot, const dpp::slashcommand_t& event) {
 	msg.set_channel_id(event.command.channel_id);
 	msg.add_file("members-to-ban.txt", file);
 
-	bot.message_create(msg);
+	event.reply(msg);
 }
