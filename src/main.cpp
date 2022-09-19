@@ -26,6 +26,7 @@
 #define MINUTE 60 //!< amount of seconds of a minute
 
 #define FAST_JOIN_THRESHOLD 60 //!< The time in seconds in which a certain number of players have to join, to be recognized as a raid. You can adjust this if you want
+#define FAST_JOIN_MIN_MEMBER_COUNT 7 //!< When more than x members joined in the past (FAST_JOIN_THRESHOLD) seconds. You can adjust this number depending on your guild size
 
 
 int main() {
@@ -198,16 +199,15 @@ int main() {
 			embed.set_color(0xff0000);
 			embed.set_timestamp(first_join);
 			embed.set_title(fmt::format(":o: Raid detected with {} Users", fast_joined_members.count()));
+			std::string file = "| User ID\t\t| Account creation\t| Joined\t\t| Username\n";
 			dpp::guild_member *firstUser;
 			dpp::guild_member *lastUser;
-			std::string memberStr;
 			{
 				std::shared_lock l(fast_joined_members.get_mutex());
 				auto &container = fast_joined_members.get_container();
 				firstUser = &container.begin()->second->gm;
 				lastUser = &container.begin()->second->gm;
 				for (auto &[id, m] : container) {
-					memberStr += m->gm.get_mention();
 
 					if (firstUser->joined_at > m->gm.joined_at) {
 						firstUser = &m->gm;
@@ -215,17 +215,26 @@ int main() {
 					if (lastUser->joined_at < m->gm.joined_at) {
 						lastUser = &m->gm;
 					}
+
+					// add member to file
+					auto creation = static_cast<time_t>(m->id.get_creation_time());
+					file += std::to_string(m->id) + "\t" + formatTime(creation) + "\t" + formatTime(m->gm.joined_at);
+					auto user = dpp::find_user(m->id);
+					if (user) {
+						file += "\t" + user->username;
+					}
+					file += "\n";
 				}
 			}
 
 			embed.add_field("First user", fmt::format("User: {}\nJoined: {}\n\u200b", firstUser->get_mention(), dpp::utility::timestamp(firstUser->joined_at, dpp::utility::tf_long_time)), true);
 			embed.add_field("Last user", fmt::format("User: {}\nJoined: {}\n\u200b", lastUser->get_mention(), dpp::utility::timestamp(lastUser->joined_at, dpp::utility::tf_long_time)), true);
-			embed.set_description(memberStr);
 			dpp::message msg("@everyone");
 			msg.allowed_mentions.parse_everyone = true;
 			msg.channel_id = config["log-channel-id"].get<std::uint64_t>();
 			msg.add_embed(embed);
-			bot.message_create(msg, [&log](const dpp::confirmation_callback_t &c) {
+			msg.add_file("users.txt", file);
+			bot.message_create(msg, [&log, msg](const dpp::confirmation_callback_t &c) {
 				if (c.is_error()) {
 					log->error("error while sending the log message: " + c.http_info.body);
 				}
@@ -274,10 +283,7 @@ int main() {
 			}
 		}
 
-		/* When more than 8 members joined in the past 60 seconds.
-		 * You can adjust this number depending on your guild size
-		 */
-		if (fast_joined_member_count >= 8) {
+		if (fast_joined_member_count >= FAST_JOIN_MIN_MEMBER_COUNT) {
 			if (!first_join) {
 				first_join = time(nullptr);
 			}
