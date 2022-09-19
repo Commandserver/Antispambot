@@ -17,9 +17,8 @@ namespace ButtonHandler {
 	struct Session {
 		time_t created_at;
 		std::function<bool(const dpp::button_click_t &)> function;
-		bool only_one;
 
-		Session() : created_at(time(nullptr)), only_one(true) {}
+		Session() : created_at(time(nullptr)) {}
 
 		/**
 		 * Whether the callback is expired and can be removed from the cache
@@ -43,9 +42,8 @@ namespace ButtonHandler {
      * Return true if the component should be removed after execution.
      * The handler will then no longer respond to the button. Otherwise return false
      * @param function callback to execute when the component got triggered
-     * @param only_one If true, the callback can be called only once and will be then removed from the cache
      */
-	void bind(dpp::component &component, const std::function<bool(const dpp::button_click_t &)> &function, bool only_one = true) {
+	void bind(dpp::component &component, const std::function<bool(const dpp::button_click_t &)> &function) {
 		std::unique_lock l(cachedActionsMutex);
 
 		// remove too old ones
@@ -72,7 +70,6 @@ namespace ButtonHandler {
 
 				Session session;
 				session.function = function;
-				session.only_one = only_one;
 				component.custom_id += CUSTOM_ID_SPACER + std::to_string(static_cast<long int>(session.created_at)); // add creation time to the custom_id
 				cachedActions[customIdCounter] = session;
 				customIdAlreadyExists = false; // break
@@ -110,7 +107,7 @@ namespace ButtonHandler {
 
 		if (existing != cachedActions.end() && existing->second.created_at == creationTimestamp) {
 			bool forget = existing->second.function(event);
-			if (forget && existing->second.only_one) {
+			if (forget) {
 				cachedActions.erase(existing);
 			}
 		}
