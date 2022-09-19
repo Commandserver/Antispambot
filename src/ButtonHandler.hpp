@@ -29,29 +29,28 @@ namespace ButtonHandler {
 	};
 
 	/// cached components with their callbacks. Identified by the custom_id
-	std::unordered_map<uint64_t, Session> cachedActions;
+	std::unordered_map<uint64_t, Session> cachedSessions;
 	/// cache mutex
-	std::shared_mutex cachedActionsMutex;
+	std::shared_mutex cachedSessionsMutex;
 	/// incrementing custom_id counter
 	uint64_t customIdCounter;
 
 	/**
      * Set a callback to respond to a component. The function will overwrite the custom_id of the component!
-     * @param component component to execute the function for when its triggered.
-     * It'll set the custom_id of the component to its internal counter.
-     * Return true if the component should be removed after execution.
+     * @param component component to execute the function for when its triggered. The custom_id field gets overwritten.
+     * Return true if the callback should be removed from the cache after execution.
      * The handler will then no longer respond to the button. Otherwise return false
      * @param function callback to execute when the component got triggered
      */
 	void bind(dpp::component &component, const std::function<bool(const dpp::button_click_t &)> &function) {
-		std::unique_lock l(cachedActionsMutex);
+		std::unique_lock l(cachedSessionsMutex);
 
 		// remove too old ones
-		auto it = cachedActions.begin();
-		while (it != cachedActions.end()) {
+		auto it = cachedSessions.begin();
+		while (it != cachedSessions.end()) {
 			if (it->second.isExpired()) {
-				assert(!cachedActions.empty());
-				it = cachedActions.erase(it);  // <-- Return value should be a valid iterator.
+				assert(!cachedSessions.empty());
+				it = cachedSessions.erase(it);  // <-- Return value should be a valid iterator.
 			} else {
 				++it;  // Have to manually increment.
 			}
@@ -64,14 +63,14 @@ namespace ButtonHandler {
 			}
 			customIdCounter++;
 
-			customIdAlreadyExists = cachedActions.find(customIdCounter) != cachedActions.end();
+			customIdAlreadyExists = cachedSessions.find(customIdCounter) != cachedSessions.end();
 			if (!customIdAlreadyExists) {
 				component.custom_id = std::to_string(customIdCounter); // overwrite the custom_id from the given component
 
 				Session session;
 				session.function = function;
 				component.custom_id += CUSTOM_ID_SPACER + std::to_string(static_cast<long int>(session.created_at)); // add creation time to the custom_id
-				cachedActions[customIdCounter] = session;
+				cachedSessions[customIdCounter] = session;
 				customIdAlreadyExists = false; // break
 			}
 		} while (customIdAlreadyExists);
@@ -101,14 +100,14 @@ namespace ButtonHandler {
 			return;
 		}
 
-		std::unique_lock l(cachedActionsMutex);
+		std::unique_lock l(cachedSessionsMutex);
 
-		auto existing = cachedActions.find(customId);
+		auto existing = cachedSessions.find(customId);
 
-		if (existing != cachedActions.end() && existing->second.created_at == creationTimestamp) {
+		if (existing != cachedSessions.end() && existing->second.created_at == creationTimestamp) {
 			bool forget = existing->second.function(event);
 			if (forget) {
-				cachedActions.erase(existing);
+				cachedSessions.erase(existing);
 			}
 		}
 	}
