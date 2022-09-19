@@ -16,7 +16,7 @@ namespace ButtonHandler {
 	 */
 	struct Session {
 		time_t created_at;
-		std::function<void(const dpp::button_click_t &)> function;
+		std::function<bool(const dpp::button_click_t &)> function;
 		bool only_one;
 
 		Session() : created_at(time(nullptr)), only_one(true) {}
@@ -38,11 +38,14 @@ namespace ButtonHandler {
 
 	/**
      * Set a callback to respond to a component. The function will overwrite the custom_id of the component!
-     * @param component component to execute the function for when its triggered. It'll set the custom_id of the component to its internal counter
+     * @param component component to execute the function for when its triggered.
+     * It'll set the custom_id of the component to its internal counter.
+     * Return true if the component should be removed after execution.
+     * The handler will then no longer respond to the button. Otherwise return false
      * @param function callback to execute when the component got triggered
      * @param only_one If true, the callback can be called only once and will be then removed from the cache
      */
-	void bind(dpp::component &component, const std::function<void(const dpp::button_click_t &)> &function, bool only_one = true) {
+	void bind(dpp::component &component, const std::function<bool(const dpp::button_click_t &)> &function, bool only_one = true) {
 		std::unique_lock l(cachedActionsMutex);
 
 		// remove too old ones
@@ -106,8 +109,8 @@ namespace ButtonHandler {
 		auto existing = cachedActions.find(customId);
 
 		if (existing != cachedActions.end() && existing->second.created_at == creationTimestamp) {
-			existing->second.function(event);
-			if (existing->second.only_one) {
+			bool forget = existing->second.function(event);
+			if (forget && existing->second.only_one) {
 				cachedActions.erase(existing);
 			}
 		}

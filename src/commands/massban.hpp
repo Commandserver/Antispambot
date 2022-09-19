@@ -81,15 +81,20 @@ void handle_massban(dpp::cluster& bot, const dpp::slashcommand_t& event) {
 	bot.log(dpp::ll_debug, "File size: " + std::to_string(file.size() * sizeof(std::string::value_type)));
 
 
-	// send confirm buttons
 
 	auto confirm_component = dpp::component()
 			.set_label("Massban")
 			.set_type(dpp::cot_button)
 			.set_style(dpp::cos_danger);
 
-	ButtonHandler::bind(confirm_component, [&bot, users_to_ban, guild_id = event.command.guild_id, channel_id = event.command.channel_id](const dpp::button_click_t &event) {
-		// TODO check permissions
+	ButtonHandler::bind(confirm_component, [&bot, users_to_ban, source = event.command.usr.id, guild_id = event.command.guild_id, channel_id = event.command.channel_id](const dpp::button_click_t &event) {
+
+		// TODO check permissions of the invoking user
+
+		if (source != event.command.usr.id) {
+			return false;
+		}
+
 		event.reply(
 				dpp::message("Mass ban started! Please wait...")
 		);
@@ -145,6 +150,7 @@ void handle_massban(dpp::cluster& bot, const dpp::slashcommand_t& event) {
 			bot.message_create_sync(m);
 		});
 		t.detach();
+		return true;
 	});
 
 	auto cancel_confirm = dpp::component()
@@ -152,13 +158,19 @@ void handle_massban(dpp::cluster& bot, const dpp::slashcommand_t& event) {
 			.set_type(dpp::cot_button)
 			.set_style(dpp::cos_secondary);
 
-	ButtonHandler::bind(cancel_confirm, [](const dpp::button_click_t &event) {
+	ButtonHandler::bind(cancel_confirm, [source = event.command.usr.id](const dpp::button_click_t &event) {
+
+		if (source != event.command.usr.id) {
+			return false;
+		}
+
 		event.reply(
 				dpp::interaction_response_type::ir_update_message,
 				dpp::message()
 						.set_flags(dpp::m_ephemeral)
 						.set_content("Mass ban canceled")
 		);
+		return true;
 	});
 
 	dpp::message msg;
