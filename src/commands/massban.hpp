@@ -1,11 +1,15 @@
 #include <dpp/dpp.h>
 #include <thread>
 
+dpp::permission permissions_massban() {
+	return dpp::p_ban_members;
+}
+
 dpp::slashcommand definition_massban() {
 	return dpp::slashcommand()
 			.set_name("massban")
 			.set_description("Mass ban")
-			.set_default_permissions(0)
+			.set_default_permissions(permissions_massban())
 			.add_option(dpp::command_option(dpp::co_user, "first", "The user who joined first", true))
 			.add_option(dpp::command_option(dpp::co_user, "last", "The user who joined last", true));
 }
@@ -15,13 +19,13 @@ void handle_massban(dpp::cluster& bot, const dpp::slashcommand_t& event) {
 	auto guild = dpp::find_guild(event.command.guild_id);
 	if (guild == nullptr) {
 		bot.log(dpp::ll_error, "Guild not found");
-		event.reply("Oopsie Woopsie. Uwu we made a fucky wucky!");
+		event.reply(dpp::message("Oopsie Woopsie. Uwu we made a fucky wucky!").set_flags(dpp::m_ephemeral));
 		return;
 	}
 
 	// check permission
-	if (!guild->base_permissions(event.command.member).has(dpp::p_administrator)) {
-		event.reply(dpp::message("You need to be administrator").set_flags(dpp::m_ephemeral));
+	if (!guild->base_permissions(event.command.member).has(permissions_massban())) {
+		event.reply(dpp::message("You don't have enough permissions").set_flags(dpp::m_ephemeral));
 		return;
 	}
 
