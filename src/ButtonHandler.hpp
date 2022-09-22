@@ -36,16 +36,11 @@ namespace ButtonHandler {
 	uint64_t customIdCounter;
 
 	/**
-     * Set a callback to respond to a component. The function will overwrite the custom_id of the component!
-     * @param component component to execute the function for when its triggered. The custom_id field gets overwritten.
-     * Return true if the callback should be removed from the cache after execution.
-     * The handler will then no longer respond to the button. Otherwise return false
-     * @param function callback to execute when the component got triggered
-     */
-	void bind(dpp::component &component, const std::function<bool(const dpp::button_click_t &)> &function) {
+	 * Remove too old sessions from the cache
+	 */
+	void clearGarbage() {
 		std::unique_lock l(cachedSessionsMutex);
 
-		// remove too old ones
 		auto it = cachedSessions.begin();
 		while (it != cachedSessions.end()) {
 			if (it->second.isExpired()) {
@@ -55,6 +50,19 @@ namespace ButtonHandler {
 				++it;  // Have to manually increment.
 			}
 		}
+	}
+
+	/**
+     * Set a callback to respond to a component. The function will overwrite the custom_id of the component!
+     * @param component component to execute the function for when its triggered. The custom_id field gets overwritten.
+     * Return true if the callback should be removed from the cache after execution.
+     * The handler will then no longer respond to the button. Otherwise return false
+     * @param function callback to execute when the component got triggered
+     */
+	void bind(dpp::component &component, const std::function<bool(const dpp::button_click_t &)> &function) {
+		clearGarbage();
+
+		std::unique_lock l(cachedSessionsMutex);
 
 		bool customIdAlreadyExists;
 		do {
@@ -104,7 +112,7 @@ namespace ButtonHandler {
 
 		auto existing = cachedSessions.find(customId);
 
-		if (existing != cachedSessions.end() && existing->second.created_at == creationTimestamp) {
+		if (existing != cachedSessions.end() && existing->second.created_at == creationTimestamp && !existing->second.isExpired()) {
 			bool forget = existing->second.function(event);
 			if (forget) {
 				cachedSessions.erase(existing);
