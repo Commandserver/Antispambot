@@ -375,6 +375,69 @@ int main() {
 
 		if (!event.msg.content.empty()) {
 
+			// check repeated phrases (in development)
+			if (event.msg.content.find(' ') != std::string::npos) {
+
+				std::vector<std::string> words = dpp::utility::tokenize(event.msg.content, " ");
+
+				#define wordsComboCount 5 // wie viele wörter aneinander gereiht sein müssen
+				#define requiredOccurrences 5 // wie viele duplizierte phrasen in der kompletten nachricht sein müssen, das das system anschlägt
+
+				if (words.size() >= (wordsComboCount + requiredOccurrences - 1)) { // wenn überhaupt so viele wörter da sind das man das werten kann
+
+					// gehe die wörter durch bis zu einem punkt an dem eh keine duplizierungen mehr auftreten können
+					for (auto iterator = words.begin(); iterator + (wordsComboCount + requiredOccurrences - 2) != words.end(); ++iterator) {
+
+						std::vector<std::string*> phrase_to_check;
+						//cout << "Checking phrase: ";
+						for (int i = 0; i < wordsComboCount; i++) {
+							phrase_to_check.push_back(&*(iterator + i));
+							//cout << " " << *(iterator + i) << ", ";
+						}
+						//cout << endl;
+
+
+						int occurrences = 0; // amount of found duplicates for current phrase
+
+
+						// durch den rest der wörter loopen und nach der phrase suchen
+						//cout << "\tSeach in: ";
+						for (auto it = iterator + 1; it + wordsComboCount - 1 != words.end(); ++it) {
+							//cout << "  [" << *it << ", " << *(it + 1) << ", " << *(it + 2) << ", " << *(it + 3) << "], ";
+
+							// prüfen ob die phrase der zu suchenden entspricht
+							bool phrase_matches = true;
+							for (int i = 0; i < wordsComboCount; i++) {
+								if (*(it + i) != *(phrase_to_check.at(i))) {
+									phrase_matches = false;
+									break;
+								}
+							}
+							if (phrase_matches) {
+								occurrences++;
+							}
+
+						}
+						//cout << endl << "- " << occurrences << endl;
+
+						if (occurrences >= requiredOccurrences) {
+
+							// build string
+							std::string phrase;
+							for (int i = 0; i < wordsComboCount; i++) {
+								phrase += *phrase_to_check[i] + (i >= wordsComboCount - 1 ? "" : " ");
+							}
+
+							//cout << "Repeated phrases detected: " << phrase << ", occurrences=" << occurrences << endl;
+							mitigateSpam(bot, message_cache, config, event.msg,
+										 fmt::format("Repeated phrase in message:\n`{}`\nOccurrences: {}", phrase, occurrences), 1800, true);
+							return;
+						}
+
+					}
+				}
+			}
+
 			// collect discord invitation codes (from urls and raw text)
 			if (event.msg.content.find("discord") != std::string::npos) { // check the validity of the whole string
 				std::smatch match;
