@@ -380,34 +380,39 @@ int main() {
 
 				std::vector<std::string> words = dpp::utility::tokenize(event.msg.content, " ");
 
-				#define wordsComboCount 5 // wie viele wörter aneinander gereiht sein müssen
-				#define requiredOccurrences 5 // wie viele duplizierte phrasen in der kompletten nachricht sein müssen, das das system anschlägt
+				#define WORDS_COMBO_COUNT 5 // wie viele wörter aneinander gereiht sein müssen
+				#define REQUIRED_OCCURRENCES 5 // wie viele duplizierte phrasen in der kompletten nachricht sein müssen, das das system anschlägt
 
-				if (words.size() >= (wordsComboCount + requiredOccurrences - 1)) { // wenn überhaupt so viele wörter da sind das man das werten kann
+				if (words.size() >= (WORDS_COMBO_COUNT + REQUIRED_OCCURRENCES - 1)) { // wenn überhaupt so viele wörter da sind das man das werten kann
 
 					// gehe die wörter durch bis zu einem punkt an dem eh keine duplizierungen mehr auftreten können
-					for (auto iterator = words.begin(); iterator + (wordsComboCount + requiredOccurrences - 2) != words.end(); ++iterator) {
+					for (auto iterator = words.begin(); iterator + (WORDS_COMBO_COUNT + REQUIRED_OCCURRENCES - 2) != words.end(); ++iterator) {
+
+						// überspringe das wort wenn es kürzer als 2 buchstaben ist (utf8 damit emojis richtig gezählt werden)
+						if (dpp::utility::utf8len(*iterator) <= 2) {
+							continue;
+						}
 
 						std::vector<std::string*> phrase_to_check;
-						//cout << "Checking phrase: ";
-						for (int i = 0; i < wordsComboCount; i++) {
+						//std::cout << "Checking phrase: ";
+						for (int i = 0; i < WORDS_COMBO_COUNT; i++) {
 							phrase_to_check.push_back(&*(iterator + i));
-							//cout << " " << *(iterator + i) << ", ";
+							//std::cout << " " << *(iterator + i) << ", ";
 						}
-						//cout << endl;
+						//std::cout << std::endl;
 
 
 						int occurrences = 0; // amount of found duplicates for current phrase
 
 
 						// durch den rest der wörter loopen und nach der phrase suchen
-						//cout << "\tSeach in: ";
-						for (auto it = iterator + 1; it + wordsComboCount - 1 != words.end(); ++it) {
-							//cout << "  [" << *it << ", " << *(it + 1) << ", " << *(it + 2) << ", " << *(it + 3) << "], ";
+						//std::cout << "\tSeach in: ";
+						for (auto it = iterator + 1; it + WORDS_COMBO_COUNT - 1 != words.end(); ++it) {
+							//std::cout << "  [" << *it << ", " << *(it + 1) << ", " << *(it + 2) << ", " << *(it + 3) << "], ";
 
 							// prüfen ob die phrase der zu suchenden entspricht
 							bool phrase_matches = true;
-							for (int i = 0; i < wordsComboCount; i++) {
+							for (int i = 0; i < WORDS_COMBO_COUNT; i++) {
 								if (*(it + i) != *(phrase_to_check.at(i))) {
 									phrase_matches = false;
 									break;
@@ -418,17 +423,17 @@ int main() {
 							}
 
 						}
-						//cout << endl << "- " << occurrences << endl;
+						//std::cout << std::endl << "- " << occurrences << std::endl;
 
-						if (occurrences >= requiredOccurrences) {
+						if (occurrences >= REQUIRED_OCCURRENCES) {
 
 							// build string
 							std::string phrase;
-							for (int i = 0; i < wordsComboCount; i++) {
-								phrase += *phrase_to_check[i] + (i >= wordsComboCount - 1 ? "" : " ");
+							for (int i = 0; i < WORDS_COMBO_COUNT; i++) {
+								phrase += *phrase_to_check[i] + (i >= WORDS_COMBO_COUNT - 1 ? "" : " ");
 							}
 
-							//cout << "Repeated phrases detected: " << phrase << ", occurrences=" << occurrences << endl;
+							//std::cout << "Repeated phrases detected: " << phrase << ", occurrences=" << occurrences << std::endl;
 							mitigateSpam(bot, message_cache, config, event.msg,
 										 fmt::format("Repeated phrase in message:\n`{}`\nOccurrences: {}", phrase, occurrences), 1800, true);
 							return;
