@@ -11,12 +11,12 @@
 #include <set>
 #include <ctime>
 
+#include "ButtonHandler.hpp"
+
 #include "JsonFile.h"
 #include "utils.hpp"
 #include "ConfigSet.h"
 #include "CachedGuildMember.h"
-
-#include "ButtonHandler.hpp"
 
 #include "commands/info.hpp"
 #include "commands/manage.hpp"
@@ -750,7 +750,7 @@ int main() {
 					embed.add_field("Reason", "Invitation posted", true);
 					embed.add_field("Channel", fmt::format("<#{}>", msg.channel_id), true);
 					if (!msg.content.empty()) {
-						embed.add_field("Original Message", msg.content);
+						embed.add_field("Original message", msg.content);
 					}
 					embed.set_footer("ID " + std::to_string(msg.author.id), "");
 					embed.add_field("Timeout duration", stringifySeconds(muteDuration));

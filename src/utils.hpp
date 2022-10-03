@@ -205,7 +205,45 @@ void mitigateSpam(dpp::cluster &bot, dpp::cache<dpp::message> &message_cache, nl
 				)
 		);
 	}
-	bot.execute_webhook(dpp::webhook(config["log-webhook-url"]), dpp::message().add_embed(embed));
+
+	// add kick button
+	auto kick_component = dpp::component()
+			.set_label("Kick")
+			.set_type(dpp::cot_button)
+			.set_style(dpp::cos_danger);
+
+	ButtonHandler::bind(kick_component, [&bot, userIdToKick = msg.author.id](const dpp::button_click_t &event){
+		// check bot permissions
+		if (!event.command.app_permissions.has(dpp::p_kick_members)) {
+			event.reply(dpp::message("The bot has no permission to kick members").set_flags(dpp::m_ephemeral));
+			return false;
+		}
+		// check member permissions
+		dpp::permission memberPermission;
+		try {
+			memberPermission = event.command.get_resolved_permission(event.command.usr.id);
+		} catch (dpp::logic_exception&) {
+			event.reply(dpp::message("You need kick permissions to do that").set_flags(dpp::m_ephemeral));
+			return false;
+		}
+		if (memberPermission.has(dpp::p_kick_members)) {
+			// kick the member
+			bot.set_audit_reason("kicked by " + std::to_string(event.command.usr.id) + " after spam detection")
+					.guild_member_kick(event.command.guild_id, userIdToKick);
+			event.reply(dpp::message("<@" + std::to_string(userIdToKick) + "> kicked").set_flags(dpp::m_ephemeral));
+			return true;
+		} else {
+			event.reply(dpp::message("You need kick permissions to do that").set_flags(dpp::m_ephemeral));
+			return false;
+		}
+	}, 2880);
+
+	dpp::component component;
+	component.add_component(kick_component);
+
+	auto m = dpp::message().add_embed(embed).add_component(component);
+	m.channel_id = config["log-channel-id"].get<std::uint64_t>();
+	bot.message_create(m);
 	if (clearHistoryMessages) {
 		deleteUserMessages(bot, message_cache, msg.author.id);
 	} else {
