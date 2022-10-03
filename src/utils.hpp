@@ -157,9 +157,10 @@ void deleteUserMessages(dpp::cluster &bot, dpp::cache<dpp::message> &message_cac
  * @param reason The reason to timeout the member
  * @param muteDuration The amount of seconds to timeout the member
  * @param clearHistoryMessages Will delete all messages from the user if set to true. If false, it will only delete the current message
+ * @param fields Optional: Embed fields to also add to the log message
  * When set to false, it deletes only this message
  */
-void mitigateSpam(dpp::cluster &bot, dpp::cache<dpp::message> &message_cache, nlohmann::json &config, const dpp::message &msg, const std::string& reason, const uint32_t muteDuration, bool clearHistoryMessages) {
+void mitigateSpam(dpp::cluster &bot, dpp::cache<dpp::message> &message_cache, nlohmann::json &config, const dpp::message &msg, const std::string& reason, const uint32_t muteDuration, bool clearHistoryMessages, const std::vector<dpp::embed_field> &fields = {}) {
 
 	muteMember(bot, muteDuration, msg.guild_id, msg.author.id);
 
@@ -169,11 +170,12 @@ void mitigateSpam(dpp::cluster &bot, dpp::cache<dpp::message> &message_cache, nl
 	embed.set_description(fmt::format(":warning: Spam detected by {} ({})", msg.author.get_mention(), msg.author.format_username()));
 	embed.add_field("Reason", reason, true);
 	embed.add_field("Channel", fmt::format("<#{}>", msg.channel_id), true);
+	embed.add_field("Timeout duration", stringifySeconds(muteDuration), true);
 	if (!msg.content.empty()) {
 		embed.add_field("Original message", msg.content);
 	}
 	embed.set_footer("ID " + std::to_string(msg.author.id), "");
-	embed.add_field("Timeout duration", stringifySeconds(muteDuration));
+	embed.set_thumbnail(msg.author.get_avatar_url());
 
 	uint8_t i = 0; // counter to ensure only the first 3 attachments are mentioned
 	for (auto &attachment : msg.attachments) {
@@ -204,6 +206,11 @@ void mitigateSpam(dpp::cluster &bot, dpp::cache<dpp::message> &message_cache, nl
 							sticker.get_url().size() <= 256 ? sticker.get_url() : "_(url too long)_"
 				)
 		);
+	}
+
+	// add passed embed fields
+	for (const auto &field : fields) {
+		embed.add_field(field.name, field.value, field.is_inline);
 	}
 
 	// add kick button

@@ -718,7 +718,7 @@ int main() {
 		}
 
 		// too many discord-invitations in one message
-		if (inviteCount > 4 or inviteCodes.size() > 2) {
+		if (inviteCount > 4 or inviteCodes.size() >= 2) {
 			log->debug("too many invites");
 			mitigateSpam(bot, message_cache, config, event.msg,
 						 "Too many invitations", DAY * 27, true);
@@ -739,24 +739,15 @@ int main() {
 						bot.log(dpp::ll_debug, "unknown invite detected");
 					}
 
-					int muteDuration = DAY * 27;
+					std::vector<dpp::embed_field> embedFields;
 
-					muteMember(bot, muteDuration, msg.guild_id, msg.author.id);
-
-					dpp::embed embed; // create the embed log message
-					embed.set_color(0xff6600);
-					embed.set_timestamp(time(nullptr));
-					embed.set_description(fmt::format(":warning: Spam detected by {} ({})", msg.author.get_mention(), msg.author.format_username()));
-					embed.add_field("Reason", "Invitation posted", true);
-					embed.add_field("Channel", fmt::format("<#{}>", msg.channel_id), true);
-					if (!msg.content.empty()) {
-						embed.add_field("Original message", msg.content);
-					}
-					embed.set_footer("ID " + std::to_string(msg.author.id), "");
-					embed.add_field("Timeout duration", stringifySeconds(muteDuration));
-					if (!e.is_error()) { // invite details
+					if (!e.is_error()) {
+						// invite details
 						auto invite = std::get<dpp::invite>(e.value);
-						std::string s;
+						dpp::embed_field inviteField;
+						inviteField.is_inline = false;
+						inviteField.name = "Invitation details";
+						std::string s = "\nCode: _" + invite.code + "_";
 						if (invite.inviter_id) {
 							s = "Created by: <@" + std::to_string(invite.inviter_id) + ">";
 						}
@@ -764,13 +755,32 @@ int main() {
 							s += "\nExpires: " + dpp::utility::timestamp(invite.expires_at, dpp::utility::tf_short_datetime);
 						}
 						s += "\nGuild ID: " + std::to_string(invite.guild_id);
-						s += "\nCode: _" + invite.code + "_";
-						embed.add_field("Invitation details", s);
+						inviteField.value = s;
+						embedFields.push_back(inviteField);
+
+						// get the guild object from the raw json
+						json j;
+						try {
+							j = json::parse(e.http_info.body);
+						} catch (json::exception&) {}
+						if (j.contains("guild")) {
+							dpp::embed_field guildField;
+							guildField.is_inline = false;
+							guildField.name = "Guild info";
+							auto guild = dpp::guild().fill_from_json(&j["guild"]);
+							std::string gInfo = "Name: " + guild.name;
+							if (!guild.description.empty()) {
+								gInfo += "\nDescription: " + guild.description;
+							}
+							gInfo += "\nMembers: :green_circle: " + std::to_string(invite.approximate_presence_count) +
+									 " Online • " + std::to_string(invite.approximate_member_count) + " Total members";
+							guildField.value = gInfo;
+							embedFields.push_back(guildField);
+						}
 					}
-					// log
-					bot.execute_webhook(dpp::webhook(config["log-webhook-url"]), dpp::message().add_embed(embed));
-					// purge user messages
-					deleteUserMessages(bot, message_cache, msg.author.id);
+
+					mitigateSpam(bot, message_cache, config, msg,
+								 "Invitation posted", DAY * 27, true, embedFields);
 				});
 			}
 		}
