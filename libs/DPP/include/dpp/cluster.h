@@ -52,7 +52,7 @@ using  json = nlohmann::json;
 
 namespace dpp {
 
-extern DPP_EXPORT event_handle _next_handle;
+event_handle DPP_EXPORT get_next_event_handle();
 
 /**
  * @brief Handles routing of an event to multiple listeners.
@@ -114,8 +114,14 @@ private:
 	/**
 	 * @brief Container for event listeners (coroutines only)
 	 */
-	std::map<event_handle, std::function<void(const T)>> coroutine_container;
+	std::map<event_handle, std::function<dpp::task(T)>> coroutine_container;
+#else
+       /**
+        * @brief Dummy container to keep the struct size same
+        */
+       std::map<event_handle, std::function<void(T)>> dummy_container;
 #endif
+
 
 	/**
 	 * @brief A function to be called whenever the method is called, to check
@@ -139,8 +145,7 @@ public:
 	/**
 	 * @brief Construct a new event_router_t object.
 	 */
-	event_router_t() {
-	}
+	event_router_t() = default;
 
 	/**
 	 * @brief Call all attached listeners.
@@ -216,15 +221,15 @@ public:
 	 */
 	event_handle attach(std::function<void(const T&)> func) {
 		std::unique_lock l(lock);
-		event_handle h = _next_handle++;
+		event_handle h = dpp::get_next_event_handle();
 		dispatch_container.emplace(h, func);
 		return h;		
 	}
 
 #ifdef DPP_CORO
-	event_handle attach(std::function<dpp::task(const T&)> func) {
+	event_handle co_attach(std::function<dpp::task(T)> func) {
 		std::unique_lock l(lock);
-		event_handle h = _next_handle++;
+		event_handle h = dpp::get_next_event_handle();
 		coroutine_container.emplace(h, func);
 		return h;		
 	}
@@ -1514,7 +1519,7 @@ public:
 	 * New guild commands will be available in the guild immediately. If the command did not already exist, it will count toward daily application command create limits.
 	 * @param guild_id Guild ID to create/update the slash commands in
 	 * @param callback Function to call when the API call completes.
-	 * On success the callback will contain a list of dpp::slashcommand object in confirmation_callback_t::value. On failure, the value is undefined and confirmation_callback_t::is_error() method will return true. You can obtain full error details with confirmation_callback_t::get_error().
+	 * On success the callback will contain a dpp::slashcommand_map object in confirmation_callback_t::value. On failure, the value is undefined and confirmation_callback_t::is_error() method will return true. You can obtain full error details with confirmation_callback_t::get_error().
 	 */
 	void guild_bulk_command_create(const std::vector<slashcommand> &commands, snowflake guild_id, command_completion_event_t callback = utility::log_error());
 
@@ -1527,7 +1532,7 @@ public:
 	 * overwriting existing commands that are registered globally for this application. Updates will be available in all guilds after 1 hour.
 	 * Commands that do not already exist will count toward daily application command create limits.
 	 * @param callback Function to call when the API call completes.
-	 * On success the callback will contain a list of dpp::slashcommand object in confirmation_callback_t::value. On failure, the value is undefined and confirmation_callback_t::is_error() method will return true. You can obtain full error details with confirmation_callback_t::get_error().
+	 * On success the callback will contain a dpp::slashcommand_map object in confirmation_callback_t::value. On failure, the value is undefined and confirmation_callback_t::is_error() method will return true. You can obtain full error details with confirmation_callback_t::get_error().
 	 */
 	void global_bulk_command_create(const std::vector<slashcommand> &commands, command_completion_event_t callback = utility::log_error());
 
@@ -3047,6 +3052,22 @@ public:
 	 * On success the callback will contain a dpp::confirmation object in confirmation_callback_t::value. On failure, the value is undefined and confirmation_callback_t::is_error() method will return true. You can obtain full error details with confirmation_callback_t::get_error().
 	 */
 	void current_user_leave_guild(snowflake guild_id, command_completion_event_t callback = utility::log_error());
+
+	/**
+	 * @brief Create a thread in forum channel
+	 * @note This method supports audit log reasons set by the cluster::set_audit_reason() method.
+	 *
+	 * @see https://discord.com/developers/docs/resources/channel#start-thread-in-forum-channel
+	 * @param thread_name Name of the forum thread
+	 * @param channel_id Forum channel in which thread to create
+	 * @param msg The message to start the thread with
+	 * @param auto_archive_duration Duration to automatically archive the thread after recent activity
+	 * @param rate_limit_per_user amount of seconds a user has to wait before sending another message (0-21600); bots, as well as users with the permission manage_messages, manage_thread, or manage_channel, are unaffected
+	 * @param applied_tags List of IDs of forum tags (dpp::forum_tag) to apply to this thread
+	 * @param callback Function to call when the API call completes.
+	 * On success the callback will contain a dpp::thread object in confirmation_callback_t::value. On failure, the value is undefined and confirmation_callback_t::is_error() method will return true. You can obtain full error details with confirmation_callback_t::get_error().
+	 */
+	void thread_create_in_forum(const std::string& thread_name, snowflake channel_id, message& msg, auto_archive_duration_t auto_archive_duration, uint16_t rate_limit_per_user, std::vector<snowflake> applied_tags = {}, command_completion_event_t callback = utility::log_error());
 
 	/**
 	 * @brief Create a thread
