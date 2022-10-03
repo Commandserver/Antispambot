@@ -87,11 +87,11 @@ void handle_massban(dpp::cluster& bot, const dpp::slashcommand_t& event) {
 			.set_type(dpp::cot_button)
 			.set_style(dpp::cos_danger);
 
-	ButtonHandler::bind(confirm_component, [&bot, users_to_ban, source = event.command.usr.id, guild_id = event.command.guild_id, channel_id = event.command.channel_id](const dpp::button_click_t &event) {
+	ButtonHandler::bind(confirm_component, [&bot, users_to_ban, sourceId = event.command.usr.id](const dpp::button_click_t &event) {
 
 		// TODO check permissions of the invoking user
 
-		if (source != event.command.usr.id) {
+		if (sourceId != event.command.usr.id) {
 			return false;
 		}
 
@@ -99,12 +99,12 @@ void handle_massban(dpp::cluster& bot, const dpp::slashcommand_t& event) {
 				dpp::message("Mass ban started! Please wait...")
 		);
 
-		std::thread t([&bot, users_to_ban, guild_id, channel_id](){
+		std::thread t([&bot, users_to_ban, sourceId, guild_id = event.command.guild_id, channel_id = event.command.channel_id](){
 			bot.log(dpp::ll_info, "mass ban startet in new thread with " + std::to_string(users_to_ban.size()) + " users");
 
 			std::set<dpp::snowflake> success;
 			std::set<dpp::snowflake> failures;
-			std::string banReason = "mass ban at " + formatTime(time(nullptr));
+			std::string banReason = "mass ban by " + std::to_string(sourceId) + " at " + formatTime(time(nullptr));
 
 			for (const auto& id : users_to_ban) {
 				try {
