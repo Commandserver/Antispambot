@@ -76,9 +76,8 @@ void handle_massban(dpp::cluster& bot, const dpp::slashcommand_t& event) {
 			file += "\n";
 		}
 	}
-	// TODO max length the "file" to 8 MB
-
-	bot.log(dpp::ll_debug, "File size: " + std::to_string(file.size() * sizeof(std::string::value_type)));
+	// truncate the file to 8 MB to ensure the file can be uploaded to discord
+	file = dpp::utility::utf8substr(file, 0, 8000000);
 
 
 	auto confirm_component = dpp::component()
