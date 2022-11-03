@@ -54,8 +54,10 @@ namespace ButtonHandler {
 	}
 
 	/**
-     * Set a callback to respond to a component. The function will overwrite the custom_id of the component!
-     * @param component component to execute the function for when its triggered. The custom_id field gets overwritten.
+     * Set a callback to respond to a component.
+     * The function will overwrite the custom_id of the component!
+     * Call this BEFORE you add the component to the message!
+     * @param component component to execute the function for when its triggered. The custom_id field gets overwritten!
      * @param function callback to execute when the component got triggered.
      * Return true if the callback should be removed from the cache after execution.
      * The handler will then no longer respond to the button. Otherwise return false
