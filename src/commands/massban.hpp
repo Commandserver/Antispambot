@@ -76,10 +76,9 @@ void handle_massban(dpp::cluster& bot, const dpp::slashcommand_t& event) {
 			file += "\n";
 		}
 	}
-	// TODO max length the file to 8 MB
+	// TODO max length the "file" to 8 MB
 
 	bot.log(dpp::ll_debug, "File size: " + std::to_string(file.size() * sizeof(std::string::value_type)));
-
 
 
 	auto confirm_component = dpp::component()
@@ -88,16 +87,24 @@ void handle_massban(dpp::cluster& bot, const dpp::slashcommand_t& event) {
 			.set_style(dpp::cos_danger);
 
 	ButtonHandler::bind(confirm_component, [&bot, users_to_ban, sourceId = event.command.usr.id](const dpp::button_click_t &event) {
-
-		// TODO check permissions of the invoking user
-
+		// check if the user is the invoking user of the slash command
 		if (sourceId != event.command.usr.id) {
+			event.reply(dpp::message("You can't trigger that button").set_flags(dpp::m_ephemeral));
 			return false;
 		}
 
-		event.reply(
-				dpp::message("Mass ban started! Please wait...")
-		);
+		// check if the user has ban permissions
+		try {
+			if (!event.command.get_resolved_permission(event.command.usr.id).has(dpp::p_ban_members)) {
+				event.reply(dpp::message("You don't have permissions to ban members").set_flags(dpp::m_ephemeral));
+				return false;
+			}
+		} catch (dpp::logic_exception &e) {
+			event.reply(dpp::message("Couldn't resolve your permissions").set_flags(dpp::m_ephemeral));
+			return false;
+		}
+
+		event.reply(dpp::message("Mass ban started! Please wait..."));
 
 		std::thread t([&bot, users_to_ban, sourceId, guild_id = event.command.guild_id, channel_id = event.command.channel_id](){
 			bot.log(dpp::ll_info, "mass ban startet in new thread with " + std::to_string(users_to_ban.size()) + " users");
