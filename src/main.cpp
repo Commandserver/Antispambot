@@ -9,18 +9,24 @@
 #include <regex>
 #include <algorithm>
 #include <set>
+#include <ctime>
 
+#include "ButtonHandler.hpp"
+
+#include "JsonFile.h"
 #include "utils.hpp"
 #include "ConfigSet.h"
 #include "CachedGuildMember.h"
 
 #include "commands/info.hpp"
 #include "commands/manage.hpp"
+#include "commands/massban.hpp"
 
 #define DAY 86400 //!< amount of seconds of a day
 #define MINUTE 60 //!< amount of seconds of a minute
 
 #define FAST_JOIN_THRESHOLD 60 //!< The time in seconds in which a certain number of players have to join, to be recognized as a raid. You can adjust this if you want
+#define FAST_JOIN_MIN_MEMBER_COUNT 7 //!< When more than x members joined in the past (FAST_JOIN_THRESHOLD) seconds. You can adjust this number depending on your guild size
 
 
 int main() {
@@ -89,9 +95,10 @@ int main() {
 			std::vector<dpp::slashcommand> commands = {
 					definition_info(),
 					definition_manage(),
+					definition_massban(),
 			};
 
-			bot.guild_bulk_command_create(commands, static_cast<dpp::snowflake>(config["guild-id"]), [&bot](const dpp::confirmation_callback_t &event) {
+			bot.guild_bulk_command_create(commands, config["guild-id"].get<std::uint64_t>(), [&bot](const dpp::confirmation_callback_t &event) {
 				if (event.is_error()) {
 					bot.log(dpp::ll_error, "error creating slash commands: " + event.http_info.body);
 				} else {
@@ -107,12 +114,19 @@ int main() {
 			handle_manage(bot, event, domainBlacklist, forbiddenWords, bypassConfig);
 		} else if (event.command.get_command_name() == "info") {
 			handle_info(bot, event);
+		} else if (event.command.get_command_name() == "massban") {
+			handle_massban(bot, event);
 		}
 	});
 
 
+	bot.on_button_click([](const dpp::button_click_t &event) {
+		ButtonHandler::handle(event);
+	});
+
+
 	// set a rate limit on all threads to prevent spam in threads
-	const uint16_t thread_rate_limit = config["thread-rate-limit"];
+	const uint16_t thread_rate_limit = config["thread-rate-limit"].get<std::uint16_t>();
 	if (thread_rate_limit > 0) {
 		bot.on_thread_create([&bot, &thread_rate_limit](const dpp::thread_create_t &event) {
 			auto t = event.created;
@@ -185,16 +199,15 @@ int main() {
 			embed.set_color(0xff0000);
 			embed.set_timestamp(first_join);
 			embed.set_title(fmt::format(":o: Raid detected with {} Users", fast_joined_members.count()));
+			std::string file = "| User ID\t\t| Account creation\t| Joined\t\t| Username\n";
 			dpp::guild_member *firstUser;
 			dpp::guild_member *lastUser;
-			std::string memberStr;
 			{
 				std::shared_lock l(fast_joined_members.get_mutex());
 				auto &container = fast_joined_members.get_container();
 				firstUser = &container.begin()->second->gm;
 				lastUser = &container.begin()->second->gm;
 				for (auto &[id, m] : container) {
-					memberStr += m->gm.get_mention();
 
 					if (firstUser->joined_at > m->gm.joined_at) {
 						firstUser = &m->gm;
@@ -202,17 +215,26 @@ int main() {
 					if (lastUser->joined_at < m->gm.joined_at) {
 						lastUser = &m->gm;
 					}
+
+					// add member to file
+					auto creation = static_cast<time_t>(m->id.get_creation_time());
+					file += std::to_string(m->id) + "\t" + formatTime(creation) + "\t" + formatTime(m->gm.joined_at);
+					auto user = dpp::find_user(m->id);
+					if (user) {
+						file += "\t" + user->username;
+					}
+					file += "\n";
 				}
 			}
 
 			embed.add_field("First user", fmt::format("User: {}\nJoined: {}\n\u200b", firstUser->get_mention(), dpp::utility::timestamp(firstUser->joined_at, dpp::utility::tf_long_time)), true);
 			embed.add_field("Last user", fmt::format("User: {}\nJoined: {}\n\u200b", lastUser->get_mention(), dpp::utility::timestamp(lastUser->joined_at, dpp::utility::tf_long_time)), true);
-			embed.set_description(memberStr);
 			dpp::message msg("@everyone");
 			msg.allowed_mentions.parse_everyone = true;
-			msg.channel_id = static_cast<dpp::snowflake>(config["log-channel-id"]);
+			msg.channel_id = config["log-channel-id"].get<std::uint64_t>();
 			msg.add_embed(embed);
-			bot.message_create(msg, [&log](const dpp::confirmation_callback_t &c) {
+			msg.add_file("users.txt", file);
+			bot.message_create(msg, [&log, msg](const dpp::confirmation_callback_t &c) {
 				if (c.is_error()) {
 					log->error("error while sending the log message: " + c.http_info.body);
 				}
@@ -229,7 +251,7 @@ int main() {
 
 	bot.on_guild_member_add([&](const dpp::guild_member_add_t &event) {
 		/* continue only on the correct guild */
-		if (event.adding_guild->id != config["guild-id"]) return;
+		if (event.adding_guild->id != config["guild-id"].get<std::uint64_t>()) return;
 
 		/* add the member to the cache */
 		{
@@ -261,10 +283,7 @@ int main() {
 			}
 		}
 
-		/* When more than 8 members joined in the past 60 seconds.
-		 * You can adjust this number depending on your guild size
-		 */
-		if (fast_joined_member_count >= 8) {
+		if (fast_joined_member_count >= FAST_JOIN_MIN_MEMBER_COUNT) {
 			if (!first_join) {
 				first_join = time(nullptr);
 			}
@@ -306,7 +325,7 @@ int main() {
 
 		// do nothing when whitelisted channel
 		for (auto &id : config["excluded_channel_ids"]) {
-			if (event.msg.channel_id == static_cast<dpp::snowflake>(id)) {
+			if (event.msg.channel_id == id.get<std::uint64_t>()) {
 				return;
 			}
 		}
@@ -314,7 +333,7 @@ int main() {
 		auto *channel = dpp::find_channel(event.msg.channel_id);
 		if (channel and channel->parent_id) {
 			for (auto &id: config["excluded_category_ids"]) {
-				if (channel->parent_id == static_cast<dpp::snowflake>(id)) {
+				if (channel->parent_id == id.get<std::uint64_t>()) {
 					return;
 				}
 			}
@@ -631,7 +650,7 @@ int main() {
 		}
 
 		// too many discord-invitations in one message
-		if (inviteCount > 4 or inviteCodes.size() > 2) {
+		if (inviteCount > 4 or inviteCodes.size() >= 2) {
 			log->debug("too many invites");
 			mitigateSpam(bot, message_cache, config, event.msg,
 						 "Too many invitations", DAY * 27, true);
@@ -652,24 +671,15 @@ int main() {
 						bot.log(dpp::ll_debug, "unknown invite detected");
 					}
 
-					int muteDuration = DAY * 27;
+					std::vector<dpp::embed_field> embedFields;
 
-					muteMember(bot, muteDuration, msg.guild_id, msg.author.id);
-
-					dpp::embed embed; // create the embed log message
-					embed.set_color(0xff6600);
-					embed.set_timestamp(time(nullptr));
-					embed.set_description(fmt::format(":warning: Spam detected by {} ({})", msg.author.get_mention(), msg.author.format_username()));
-					embed.add_field("Reason", "Invitation posted", true);
-					embed.add_field("Channel", fmt::format("<#{}>", msg.channel_id), true);
-					if (!msg.content.empty()) {
-						embed.add_field("Original Message", msg.content);
-					}
-					embed.set_footer("ID " + std::to_string(msg.author.id), "");
-					embed.add_field("Timeout duration", stringifySeconds(muteDuration));
-					if (!e.is_error()) { // invite details
+					if (!e.is_error()) {
+						// invite details
 						auto invite = std::get<dpp::invite>(e.value);
-						std::string s;
+						dpp::embed_field inviteField;
+						inviteField.is_inline = false;
+						inviteField.name = "Invitation details";
+						std::string s = "\nCode: _" + invite.code + "_";
 						if (invite.inviter_id) {
 							s = "Created by: <@" + std::to_string(invite.inviter_id) + ">";
 						}
@@ -677,13 +687,32 @@ int main() {
 							s += "\nExpires: " + dpp::utility::timestamp(invite.expires_at, dpp::utility::tf_short_datetime);
 						}
 						s += "\nGuild ID: " + std::to_string(invite.guild_id);
-						s += "\nCode: _" + invite.code + "_";
-						embed.add_field("Invitation details", s);
+						inviteField.value = s;
+						embedFields.push_back(inviteField);
+
+						// get the guild object from the raw json
+						json j;
+						try {
+							j = json::parse(e.http_info.body);
+						} catch (json::exception&) {}
+						if (j.contains("guild")) {
+							dpp::embed_field guildField;
+							guildField.is_inline = false;
+							guildField.name = "Guild info";
+							auto guild = dpp::guild().fill_from_json(&j["guild"]);
+							std::string gInfo = "Name: " + guild.name;
+							if (!guild.description.empty()) {
+								gInfo += "\nDescription: " + guild.description;
+							}
+							gInfo += "\nMembers: :green_circle: " + std::to_string(invite.approximate_presence_count) +
+									 " Online • " + std::to_string(invite.approximate_member_count) + " Total members";
+							guildField.value = gInfo;
+							embedFields.push_back(guildField);
+						}
 					}
-					// log
-					bot.execute_webhook(dpp::webhook(config["log-webhook-url"]), dpp::message().add_embed(embed));
-					// purge user messages
-					deleteUserMessages(bot, message_cache, msg.author.id);
+
+					mitigateSpam(bot, message_cache, config, msg,
+								 "Invitation posted", DAY * 27, true, embedFields);
 				});
 			}
 		}

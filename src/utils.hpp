@@ -15,6 +15,16 @@ bool endsWith(const std::string &mainStr, const std::string &toMatch) {
 
 
 /**
+ * Format a time_t object to a human readable %Y-%m-%d %H:%M:%S time format
+ */
+std::string formatTime(const time_t &time) {
+	char buff[20];
+	strftime(buff, sizeof(buff), "%Y-%m-%d %H:%M:%S", localtime(&time));
+	return buff;
+}
+
+
+/**
  * Make a readable time-string from seconds
  * @param seconds The amount of seconds to create a time-string for
  * @return The formatted time-string
@@ -147,9 +157,10 @@ void deleteUserMessages(dpp::cluster &bot, dpp::cache<dpp::message> &message_cac
  * @param reason The reason to timeout the member
  * @param muteDuration The amount of seconds to timeout the member
  * @param clearHistoryMessages Will delete all messages from the user if set to true. If false, it will only delete the current message
+ * @param fields Optional: Embed fields to also add to the log message
  * When set to false, it deletes only this message
  */
-void mitigateSpam(dpp::cluster &bot, dpp::cache<dpp::message> &message_cache, nlohmann::json &config, const dpp::message &msg, const std::string& reason, const uint32_t muteDuration, bool clearHistoryMessages) {
+void mitigateSpam(dpp::cluster &bot, dpp::cache<dpp::message> &message_cache, nlohmann::json &config, const dpp::message &msg, const std::string& reason, const uint32_t muteDuration, bool clearHistoryMessages, const std::vector<dpp::embed_field> &fields = {}) {
 
 	muteMember(bot, muteDuration, msg.guild_id, msg.author.id);
 
@@ -159,11 +170,12 @@ void mitigateSpam(dpp::cluster &bot, dpp::cache<dpp::message> &message_cache, nl
 	embed.set_description(fmt::format(":warning: Spam detected by {} ({})", msg.author.get_mention(), msg.author.format_username()));
 	embed.add_field("Reason", reason, true);
 	embed.add_field("Channel", fmt::format("<#{}>", msg.channel_id), true);
+	embed.add_field("Timeout duration", stringifySeconds(muteDuration), true);
 	if (!msg.content.empty()) {
 		embed.add_field("Original message", msg.content);
 	}
 	embed.set_footer("ID " + std::to_string(msg.author.id), "");
-	embed.add_field("Timeout duration", stringifySeconds(muteDuration));
+	embed.set_thumbnail(msg.author.get_avatar_url());
 
 	uint8_t i = 0; // counter to ensure only the first 3 attachments are mentioned
 	for (auto &attachment : msg.attachments) {
@@ -195,7 +207,50 @@ void mitigateSpam(dpp::cluster &bot, dpp::cache<dpp::message> &message_cache, nl
 				)
 		);
 	}
-	bot.execute_webhook(dpp::webhook(config["log-webhook-url"]), dpp::message().add_embed(embed));
+
+	// add passed embed fields
+	for (const auto &field : fields) {
+		embed.add_field(field.name, field.value, field.is_inline);
+	}
+
+	// add kick button
+	auto kick_component = dpp::component()
+			.set_label("Kick")
+			.set_type(dpp::cot_button)
+			.set_style(dpp::cos_danger);
+
+	ButtonHandler::bind(kick_component, [&bot, userIdToKick = msg.author.id](const dpp::button_click_t &event){
+		// check bot permissions
+		if (!event.command.app_permissions.has(dpp::p_kick_members)) {
+			event.reply(dpp::message("The bot has no permission to kick members").set_flags(dpp::m_ephemeral));
+			return false;
+		}
+		// check member permissions
+		dpp::permission memberPermission;
+		try {
+			memberPermission = event.command.get_resolved_permission(event.command.usr.id);
+		} catch (dpp::logic_exception&) {
+			event.reply(dpp::message("You need kick permissions to do that").set_flags(dpp::m_ephemeral));
+			return false;
+		}
+		if (memberPermission.has(dpp::p_kick_members)) {
+			// kick the member
+			bot.set_audit_reason("kicked by " + std::to_string(event.command.usr.id) + " after spam detection")
+					.guild_member_kick(event.command.guild_id, userIdToKick);
+			event.reply(dpp::message("<@" + std::to_string(userIdToKick) + "> kicked").set_flags(dpp::m_ephemeral));
+			return true;
+		} else {
+			event.reply(dpp::message("You need kick permissions to do that").set_flags(dpp::m_ephemeral));
+			return false;
+		}
+	}, 2880);
+
+	dpp::component component;
+	component.add_component(kick_component);
+
+	auto m = dpp::message().add_embed(embed).add_component(component);
+	m.channel_id = config["log-channel-id"].get<std::uint64_t>();
+	bot.message_create(m);
 	if (clearHistoryMessages) {
 		deleteUserMessages(bot, message_cache, msg.author.id);
 	} else {

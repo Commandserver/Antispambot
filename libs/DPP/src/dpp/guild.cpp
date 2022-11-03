@@ -18,6 +18,7 @@
  * limitations under the License.
  *
  ************************************************************************************/
+#include <dpp/cache.h>
 #include <dpp/discordclient.h>
 #include <dpp/voicestate.h>
 #include <dpp/exception.h>
@@ -25,7 +26,6 @@
 #include <dpp/discordevents.h>
 #include <dpp/stringops.h>
 #include <dpp/nlohmann/json.hpp>
-#include <dpp/fmt-minimal.h>
 
 using json = nlohmann::json;
 
@@ -36,10 +36,12 @@ const std::map<std::string, std::variant<dpp::guild_flags, dpp::guild_flags_extr
 	{"VERIFIED", dpp::g_verified },
 	{"PARTNERED", dpp::g_partnered },
 	{"COMMUNITY", dpp::g_community },
+	{"DEVELOPER_SUPPORT_SERVER", dpp::g_developer_support_server },
 	{"COMMERCE", dpp::g_commerce },
 	{"NEWS", dpp::g_news },
 	{"DISCOVERABLE", dpp::g_discoverable },
-	{"FEATUREABLE", dpp::g_featureable },
+	{"FEATURABLE", dpp::g_featureable },
+	{"INVITES_DISABLED", dpp::g_invites_disabled},
 	{"ANIMATED_BANNER", dpp::g_animated_banner },
 	{"ANIMATED_ICON", dpp::g_animated_icon },
 	{"BANNER", dpp::g_banner },
@@ -74,10 +76,10 @@ guild::guild() :
 	max_members(0),
 	shard_id(0),
 	premium_subscription_count(0),
+	afk_timeout(afk_off),
 	max_video_channel_users(0),
-	afk_timeout(0),
-	default_message_notifications(0),
-	premium_tier(0),
+	default_message_notifications(dmn_all),
+	premium_tier(tier_none),
 	verification_level(ver_none),
 	explicit_content_filter(expl_disabled),
 	mfa_level(mfa_none),
@@ -98,7 +100,7 @@ guild_member::guild_member() :
 }
 
 std::string guild_member::get_mention() const {
-	return "<@!" + std::to_string(user_id) + ">";
+	return "<@" + std::to_string(user_id) + ">";
 }
 
 guild_member& guild_member::set_nickname(const std::string& nick) {
@@ -108,11 +110,13 @@ guild_member& guild_member::set_nickname(const std::string& nick) {
 
 guild_member& guild_member::set_mute(const bool is_muted) {
 	this->flags = (is_muted) ? flags | gm_mute : flags & ~gm_mute;
+	this->flags |= gm_voice_action;
 	return *this;
 }
 
 guild_member& guild_member::set_deaf(const bool is_deafened) {
 	this->flags = (is_deafened) ? flags | gm_deaf : flags & ~gm_deaf;
+	this->flags |= gm_voice_action;
 	return *this;
 }
 
@@ -125,6 +129,7 @@ guild_member& guild_member::fill_from_json(nlohmann::json* j, snowflake g_id, sn
 	this->guild_id = g_id;
 	this->user_id = u_id;
 	j->get_to(*this);
+
 	return *this;
 }
 
@@ -164,15 +169,15 @@ std::string guild_member::get_avatar_url(uint16_t size)  const {
 	 * At some point in the future this URL *will* change!
 	 */
 	if (!this->avatar.to_string().empty()) {
-		return fmt::format("{}/guilds/{}/users/{}/avatars/{}{}.{}{}",
-			utility::cdn_host,
-			this->guild_id,
-			this->user_id,
-			(has_animated_guild_avatar() ? "a_" : ""),
-			this->avatar.to_string(),
-			(has_animated_guild_avatar() ? "gif" : "png"),
-			utility::avatar_size(size)
-		);
+
+		return utility::cdn_host + "/guilds/" +
+			std::to_string(this->guild_id) + 
+			"/" +
+			std::to_string(this->user_id) +
+			(has_animated_guild_avatar() ? "/a_" : "/") +
+			this->avatar.to_string() +
+			(has_animated_guild_avatar() ? ".gif" : ".png") +
+			utility::avatar_size(size);
 	} else {
 		return std::string();
 	}
@@ -200,14 +205,22 @@ std::string guild_member::build_json(bool with_id) const {
 			j["roles"].push_back(std::to_string(role));
 		}
 	}
-	j["mute"] = is_muted();
-	j["deaf"] = is_deaf();
+
+	if (flags & gm_voice_action) {
+		j["mute"] = is_muted();
+		j["deaf"] = is_deaf();
+	}
+
 	return j.dump();
 }
 
 guild& guild::set_name(const std::string& n) {
 	this->name = utility::validate(trim(n), 2, 100, "Guild names cannot be less than 2 characters");
 	return *this;
+}
+
+dpp::user* guild_member::get_user() const {
+	return dpp::find_user(user_id);
 }
 
 bool guild_member::is_deaf() const {
@@ -250,6 +263,10 @@ bool guild::has_premium_progress_bar_enabled() const {
 	return this->flags_extra & g_premium_progress_bar_enabled;
 }
 
+bool guild::has_invites_disabled() const {
+	return this->flags_extra & g_invites_disabled;
+}
+
 bool guild::has_channel_banners() const {
 	return this->flags & g_channel_banners;
 }
@@ -288,6 +305,10 @@ bool guild::has_animated_banner() const {
 
 bool guild::has_auto_moderation() const {
 	return this->flags_extra & g_auto_moderation;
+}
+
+bool guild::has_support_server() const {
+	return this->flags_extra & g_developer_support_server;
 }
 
 bool guild::has_animated_icon() const {
@@ -358,8 +379,18 @@ std::string guild::build_json(bool with_id) const {
 	if (afk_channel_id) {
 		j["afk_channel_id"] = afk_channel_id;
 	}
-	if (afk_channel_id) {
-		j["afk_timeout"] = afk_timeout;
+	if (afk_timeout) {
+		if (afk_timeout == afk_60) {
+			j["afk_timeout"] = 60;
+		} else if (afk_timeout == afk_300) {
+			j["afk_timeout"] = 300;
+		} else if (afk_timeout == afk_900) {
+			j["afk_timeout"] = 900;
+		} else if (afk_timeout == afk_1800) {
+			j["afk_timeout"] = 1800;
+		} else if (afk_timeout == afk_3600) {
+			j["afk_timeout"] = 3600;
+		}
 	}
 	if (widget_enabled()) {
 		j["widget_channel_id"] = widget_channel_id;
@@ -456,11 +487,23 @@ guild& guild::fill_from_json(discord_client* shard, nlohmann::json* d) {
 			this->flags |= dpp::g_no_sticker_greeting;
 		}
 
+		if (d->contains("afk_timeout")) {
+			if ((*d)["afk_timeout"] == 60) {
+				this->afk_timeout = afk_60;
+			} else if ((*d)["afk_timeout"] == 300) {
+				this->afk_timeout = afk_300;
+			} else if ((*d)["afk_timeout"] == 900) {
+				this->afk_timeout = afk_900;
+			} else if ((*d)["afk_timeout"] == 1800) {
+				this->afk_timeout = afk_1800;
+			} else if ((*d)["afk_timeout"] == 3600) {
+				this->afk_timeout = afk_3600;
+			}
+		}
 		set_snowflake_not_null(d, "afk_channel_id", this->afk_channel_id);
-		set_int8_not_null(d, "afk_timeout", this->afk_timeout);
 		set_snowflake_not_null(d, "widget_channel_id", this->widget_channel_id);
 		this->verification_level = (verification_level_t)int8_not_null(d, "verification_level");
-		set_int8_not_null(d, "default_message_notifications", this->default_message_notifications);
+		this->default_message_notifications = (default_message_notification_t)int8_not_null(d, "default_message_notifications");
 		this->explicit_content_filter = (guild_explicit_content_t)int8_not_null(d, "explicit_content_filter");
 		this->mfa_level = (mfa_level_t)int8_not_null(d, "mfa_level");
 		set_snowflake_not_null(d, "application_id", this->application_id);
@@ -487,10 +530,10 @@ guild& guild::fill_from_json(discord_client* shard, nlohmann::json* d) {
 			}
 			this->banner = _banner;
 		}
-		set_int8_not_null(d, "premium_tier", this->premium_tier);
+		this->premium_tier = (guild_premium_tier_t)int8_not_null(d, "premium_tier");
 		set_int16_not_null(d, "premium_subscription_count", this->premium_subscription_count);
 		set_snowflake_not_null(d, "public_updates_channel_id", this->public_updates_channel_id);
-		set_int16_not_null(d, "max_video_channel_users", this->max_video_channel_users);
+		set_int8_not_null(d, "max_video_channel_users", this->max_video_channel_users);
 
 		set_int32_not_null(d, "max_presences", this->max_presences);
 		set_int32_not_null(d, "max_members", this->max_members);
@@ -532,20 +575,32 @@ std::string guild_widget::build_json(bool with_id) const {
 }
 
 
-uint64_t guild::base_permissions(const user* member) const
-{
-	if (owner_id == member->id)
-		return ~0;
+permission guild::base_permissions(const user* user) const {
+	if (user == nullptr)
+		return 0;
 
-	role* everyone = dpp::find_role(id);
-	auto mi = members.find(member->id);
+	auto mi = members.find(user->id);
 	if (mi == members.end())
 		return 0;
 	guild_member gm = mi->second;
 
-	uint64_t permissions = everyone->permissions;
+	return base_permissions(gm);
+}
 
-	for (auto& rid : gm.roles) {
+permission guild::base_permissions(const guild_member &member) const {
+
+	/* this method is written with the help of discord's pseudocode available here https://discord.com/developers/docs/topics/permissions#permission-overwrites */
+
+	if (owner_id == member.user_id)
+		return ~0; // return all permissions if it's the owner of the guild
+
+	role* everyone = dpp::find_role(id);
+	if (everyone == nullptr)
+		return 0;
+
+	permission permissions = everyone->permissions;
+
+	for (auto& rid : member.roles) {
 		role* r = dpp::find_role(rid);
 		if (r) {
 			permissions |= r->permissions;
@@ -558,37 +613,46 @@ uint64_t guild::base_permissions(const user* member) const
 	return permissions;
 }
 
-uint64_t guild::permission_overwrites(const uint64_t base_permissions, const user*  member, const channel* channel) const
-{
+permission guild::permission_overwrites(const uint64_t base_permissions, const user* user, const channel* channel) const {
+	if (user == nullptr || channel == nullptr)
+		return 0;
+
+	/* this method is written with the help of discord's pseudocode available here https://discord.com/developers/docs/topics/permissions#permission-overwrites */
+
+	// ADMINISTRATOR overrides any potential permission overwrites, so there is nothing to do here.
 	if (base_permissions & p_administrator)
 		return ~0;
 
-	int64_t permissions = base_permissions;
+	permission permissions = base_permissions;
+
+	// find \@everyone role overwrite and apply it.
 	for (auto it = channel->permission_overwrites.begin(); it != channel->permission_overwrites.end(); ++it) {
-		if (it->id == id && it->type == ot_role) {
+		if (it->id == this->id && it->type == ot_role) {
 			permissions &= ~it->deny;
 			permissions |= it->allow;
 			break;
 		}
 	}
 
-	auto mi = members.find(member->id);
+	auto mi = members.find(user->id);
 	if (mi == members.end())
 		return 0;
 	guild_member gm = mi->second;
+
+	// Apply role specific overwrites.
 	uint64_t allow = 0;
 	uint64_t deny = 0;
 
 	for (auto& rid : gm.roles) {
 
-		/* Skip \@everyone, calculated above */
-		if (rid == id)
+		/* Skip \@everyone role to not break the hierarchy. It's calculated above */
+		if (rid == this->id)
 			continue;
 
 		for (auto it = channel->permission_overwrites.begin(); it != channel->permission_overwrites.end(); ++it) {
-			if ((rid == it->id && it->type == ot_role) || (member->id == it->id && it->type == ot_member)) {
-				allow |= it->allow;
+			if (rid == it->id && it->type == ot_role) {
 				deny |= it->deny;
+				allow |= it->allow;
 				break;
 			}
 		}
@@ -596,6 +660,70 @@ uint64_t guild::permission_overwrites(const uint64_t base_permissions, const use
 
 	permissions &= ~deny;
 	permissions |= allow;
+
+	// Apply member specific overwrite if exists.
+	for (auto it = channel->permission_overwrites.begin(); it != channel->permission_overwrites.end(); ++it) {
+		if (gm.user_id == it->id && it->type == ot_member) {
+			permissions &= ~it->deny;
+			permissions |= it->allow;
+			break;
+		}
+	}
+
+	return permissions;
+}
+
+permission guild::permission_overwrites(const guild_member &member, const channel &channel) const {
+
+	permission base_permissions = this->base_permissions(member);
+
+	/* this method is written with the help of discord's pseudocode available here https://discord.com/developers/docs/topics/permissions#permission-overwrites */
+
+	// ADMINISTRATOR overrides any potential permission overwrites, so there is nothing to do here.
+	if (base_permissions & p_administrator)
+		return ~0;
+
+	permission permissions = base_permissions;
+
+	// find \@everyone role overwrite and apply it.
+	for (auto it = channel.permission_overwrites.begin(); it != channel.permission_overwrites.end(); ++it) {
+		if (it->id == this->id && it->type == ot_role) {
+			permissions &= ~it->deny;
+			permissions |= it->allow;
+			break;
+		}
+	}
+
+	// Apply role specific overwrites.
+	uint64_t allow = 0;
+	uint64_t deny = 0;
+
+	for (auto& rid : member.roles) {
+
+		/* Skip \@everyone role to not break the hierarchy. It's calculated above */
+		if (rid == this->id)
+			continue;
+
+		for (auto it = channel.permission_overwrites.begin(); it != channel.permission_overwrites.end(); ++it) {
+			if (rid == it->id && it->type == ot_role) {
+				deny |= it->deny;
+				allow |= it->allow;
+				break;
+			}
+		}
+	}
+
+	permissions &= ~deny;
+	permissions |= allow;
+
+	// Apply member specific overwrite if exists.
+	for (auto it = channel.permission_overwrites.begin(); it != channel.permission_overwrites.end(); ++it) {
+		if (member.user_id == it->id && it->type == ot_member) {
+			permissions &= ~it->deny;
+			permissions |= it->allow;
+			break;
+		}
+	}
 
 	return permissions;
 }
@@ -619,68 +747,61 @@ bool guild::connect_member_voice(snowflake user_id, bool self_mute, bool self_de
 }
 
 std::string guild::get_banner_url(uint16_t size) const {
-    /* XXX: Discord were supposed to change their CDN over to discord.com, they haven't.
+	/* XXX: Discord were supposed to change their CDN over to discord.com, they haven't.
 	 * At some point in the future this URL *will* change!
 	 */
 	if (!this->banner.to_string().empty()) {
-		return fmt::format("{}/banners/{}/{}{}.{}{}",
-						   utility::cdn_host,
-						   this->id,
-						   (has_animated_banner_hash() ? "a_" : ""),
-						   this->banner.to_string(),
-						   (has_animated_banner_hash() ? "gif" : "png"),
-						   utility::avatar_size(size)
-		);
+		return utility::cdn_host + "/banners/" +
+			std::to_string(this->id) +
+			(has_animated_banner_hash() ? "/a_" : "/") +
+			this->banner.to_string() +
+			(has_animated_banner_hash() ? ".gif" : ".png") +
+			utility::avatar_size(size);
 	} else {
 		return std::string();
 	}
 }
 
 std::string guild::get_discovery_splash_url(uint16_t size) const {
-    /* XXX: Discord were supposed to change their CDN over to discord.com, they haven't.
+	/* XXX: Discord were supposed to change their CDN over to discord.com, they haven't.
 	 * At some point in the future this URL *will* change!
 	 */
 	if (!this->discovery_splash.to_string().empty()) {
-		return fmt::format("{}/discovery-splashes/{}/{}.png{}",
-						   utility::cdn_host,
-						   this->id,
-						   this->discovery_splash.to_string(),
-						   utility::avatar_size(size)
-		);
+		return utility::cdn_host + "/discovery-splashes/" +
+			std::to_string(this->id) + "/" +
+			this->discovery_splash.to_string() +
+			".png" +
+			utility::avatar_size(size);
 	} else {
 		return std::string();
 	}
 }
 
 std::string guild::get_icon_url(uint16_t size) const {
-    /* XXX: Discord were supposed to change their CDN over to discord.com, they haven't.
+	/* XXX: Discord were supposed to change their CDN over to discord.com, they haven't.
 	 * At some point in the future this URL *will* change!
 	 */
 	if (!this->icon.to_string().empty()) {
-		return fmt::format("{}/icons/{}/{}{}.{}{}",
-						   utility::cdn_host,
-						   this->id,
-						   (has_animated_icon_hash() ? "a_" : ""),
-						   this->icon.to_string(),
-						   (has_animated_icon_hash() ? "gif" : "png"),
-						   utility::avatar_size(size)
-		);
+		return utility::cdn_host + "/icons/" +
+			std::to_string(this->id) +
+			(has_animated_icon_hash() ? "/a_" : "/") +
+			this->icon.to_string() +
+			(has_animated_icon_hash() ? ".gif" : ".png") +
+			utility::avatar_size(size);
 	} else {
 		return std::string();
 	}
 }
 
 std::string guild::get_splash_url(uint16_t size) const {
-    /* XXX: Discord were supposed to change their CDN over to discord.com, they haven't.
+	/* XXX: Discord were supposed to change their CDN over to discord.com, they haven't.
 	 * At some point in the future this URL *will* change!
 	 */
 	if (!this->splash.to_string().empty()) {
-		return fmt::format("{}/splashes/{}/{}.png{}",
-						   utility::cdn_host,
-						   this->id,
-						   this->splash.to_string(),
-						   utility::avatar_size(size)
-		);
+		return utility::cdn_host + "/splashes/" +
+			std::to_string(this->id) + "/" + 
+			this->splash.to_string() +
+			utility::avatar_size(size);
 	} else {
 		return std::string();
 	}

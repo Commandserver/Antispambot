@@ -18,12 +18,20 @@
  * limitations under the License.
  *
  ************************************************************************************/
-#ifndef WIN32
+
+#include <dpp/export.h>
+#ifdef _WIN32
+	#include <WinSock2.h>
+	#include <WS2tcpip.h>
+	#include <io.h>
+#else
 	#include <unistd.h>
 	#include <arpa/inet.h>
-#else
-	/* Windows #define's min() and max(), breaking std::max(). stupid stupid stupid... */
-	#define NOMINMAX
+	#include <netinet/in.h>
+	#include <resolv.h>
+	#include <netdb.h>
+	#include <sys/socket.h>
+	#include <netinet/tcp.h>
 #endif
 #include <string_view>
 #include <iostream>
@@ -35,7 +43,6 @@
 #include <dpp/cache.h>
 #include <dpp/cluster.h>
 #include <dpp/nlohmann/json.hpp>
-#include <dpp/fmt-minimal.h>
 
 #ifdef HAVE_VOICE
 	#include <sodium.h>
@@ -68,7 +75,42 @@ struct rtp_header {
 bool discord_voice_client::sodium_initialised = false;
 
 bool discord_voice_client::voice_payload::operator<(const voice_payload& other) const {
-	return seq > other.seq || timestamp > other.timestamp;
+	if (timestamp != other.timestamp) {
+		return timestamp > other.timestamp;
+	}
+
+	constexpr rtp_seq_t wrap_around_test_boundary = 5000;
+	if ((seq < wrap_around_test_boundary && other.seq >= wrap_around_test_boundary)
+    	    || (seq >= wrap_around_test_boundary && other.seq < wrap_around_test_boundary)) {
+    		/* Match the cases where exactly one of the sequence numbers "may have"
+		 * wrapped around.
+		 *
+		 * Examples:
+		 * 1. this->seq = 65530, other.seq = 10  // Did wrap around
+		 * 2. this->seq = 5002, other.seq = 4990 // Not wrapped around
+		 *
+		 * Add 5000 to both sequence numbers to force wrap around so they can be
+		 * compared. This should be fine to do to case 2 as well, as long as the
+		 * addend (5000) is not too large to cause one of them to wrap around.
+		 *
+		 * In practice, we should be unlikely to hit the case where
+		 *
+		 *           this->seq = 65530, other.seq = 5001
+		 *
+		 * because we shouldn't receive more than 5000 payloads in one batch, unless
+		 * the voice courier thread is super slow. Also remember that the timestamp
+		 * is compared first, and payloads this far apart shouldn't have the same
+		 * timestamp.
+		 */
+
+		/* Casts here ensure the sum wraps around and not implicitly converted to
+		 * wider types.
+		 */
+		return   static_cast<rtp_seq_t>(seq + wrap_around_test_boundary)
+		       > static_cast<rtp_seq_t>(other.seq + wrap_around_test_boundary);
+	} else {
+		return seq > other.seq;
+	}
 }
 
 #ifdef HAVE_VOICE
@@ -81,7 +123,7 @@ size_t audio_mix(discord_voice_client& client, opus_int32* pcm_mix, const opus_i
 	for (opus_int32 v = 0; v < samples * opus_channel_count; ++v) {
 		pcm_mix[v] += pcm[v];
 	}
-	max_samples = std::max(samples, max_samples);
+	max_samples = (std::max)(samples, max_samples);
 	return park_count + 1;
 }
 #endif
@@ -185,7 +227,11 @@ void discord_voice_client::voice_courier_loop(discord_voice_client& client, cour
 					}
 				} else {
 					voice_receive_t& vr = *d.parked_payloads.top().vr;
-					if (int samples = opus_decode(d.decoder.get(), vr.audio_data.data(), vr.audio_data.length(), pcm, 5760, 0);
+					if (vr.audio_data.length() > 0x7FFFFFFF) {
+						throw dpp::length_exception("audio_data > 2GB! This should never happen!");
+					}
+					if (int samples = opus_decode(d.decoder.get(), vr.audio_data.data(),
+						static_cast<opus_int32>(vr.audio_data.length() & 0x7FFFFFFF), pcm, 5760, 0);
 					    samples >= 0) {
 						vr.reassign(&client, d.user_id, reinterpret_cast<uint8_t*>(pcm),
 							samples * opus_channel_count * sizeof(opus_int16));
@@ -204,7 +250,7 @@ void discord_voice_client::voice_courier_loop(discord_voice_client& client, cour
 			/* Downsample the 32 bit samples back to 16 bit */
 			opus_int16 pcm_downsample[23040] = { 0 };
 			for (int v = 0; v < max_samples * opus_channel_count; ++v) {
-				pcm_downsample[v] = pcm_mix[v] / park_count;
+				pcm_downsample[v] = (opus_int16)(pcm_mix[v] / park_count);
 			}
 			voice_receive_t vr(nullptr, "", &client, 0, reinterpret_cast<uint8_t*>(pcm_downsample),
 				max_samples * opus_channel_count * sizeof(opus_int16));
@@ -310,11 +356,22 @@ void discord_voice_client::thread_run()
 {
 	utility::set_thread_name(std::string("vc/") + std::to_string(server_id));
 	do {
+		bool error = false;
 		ssl_client::read_loop();
 		ssl_client::close();
 		if (!terminating) {
-			ssl_client::connect();
-			websocket_client::connect();
+			do {
+				try {
+					ssl_client::connect();
+					websocket_client::connect();
+				}
+				catch (const std::exception &e) {
+					log(dpp::ll_error, std::string("Error establishing voice websocket connection, retry in 5 seconds: ") + e.what());
+					ssl_client::close();
+					std::this_thread::sleep_for(std::chrono::seconds(5));
+					error = true;
+				}
+			} while (error && !terminating);
 		}
 	} while(!terminating);
 }
@@ -327,6 +384,7 @@ void discord_voice_client::run()
 
 int discord_voice_client::udp_send(const char* data, size_t length)
 {
+	sockaddr_in servaddr;
 	memset(&servaddr, 0, sizeof(servaddr));
 	servaddr.sin_family = AF_INET;
 	servaddr.sin_port = htons(this->port);
@@ -481,7 +539,7 @@ bool discord_voice_client::handle_frame(const std::string &data)
 				for (auto & m : d["modes"]) {
 					this->modes.push_back(m.get<std::string>());
 				}
-				log(ll_debug, fmt::format("Voice websocket established; UDP endpoint: {}:{} [ssrc={}] with {} modes", ip, port, ssrc, modes.size()));
+				log(ll_debug, "Voice websocket established; UDP endpoint: " + ip + ":" + std::to_string(port) + " [ssrc=" + std::to_string(ssrc) + "] with " + std::to_string(modes.size()) + " modes");
 
 				external_ip = discover_ip();
 
@@ -498,20 +556,11 @@ bool discord_voice_client::handle_frame(const std::string &data)
 						throw dpp::connection_exception("Can't bind() client UDP socket");
 					}
 					
-#ifdef _WIN32
-					u_long mode = 1;
-					int result = ioctlsocket(newfd, FIONBIO, &mode);
-					if (result != NO_ERROR)
-						throw dpp::connection_exception("Can't switch socket to non-blocking mode!");
-#else
-					int ofcmode;
-					ofcmode = fcntl(newfd, F_GETFL, 0);
-					ofcmode |= O_NDELAY;
-					if (fcntl(newfd, F_SETFL, ofcmode)) {
-						throw dpp::connection_exception("Can't switch socket to non-blocking mode!");
+					if (!set_nonblocking(newfd, true)) {
+						throw dpp::connection_exception("Can't switch voice UDP socket to non-blocking mode!");
 					}
-#endif
-					/* Hook select() in the ssl_client to add a new file descriptor */
+
+					/* Hook poll() in the ssl_client to add a new file descriptor */
 					this->fd = newfd;
 					this->custom_writeable_fd = std::bind(&discord_voice_client::want_write, this);
 					this->custom_readable_fd = std::bind(&discord_voice_client::want_read, this);
@@ -717,10 +766,11 @@ void discord_voice_client::write_ready()
 	uint64_t duration = 0;
 	bool track_marker_found = false;
 	uint64_t bufsize = 0;
+	send_audio_type_t type = satype_recorded_audio; 
 	{
 		std::lock_guard<std::mutex> lock(this->stream_mutex);
 		if (!this->paused && outbuf.size()) {
-
+			type = send_audio_type;
 			if (outbuf[0].packet.size() == 2 && ((uint16_t)(*(outbuf[0].packet.data()))) == AUDIO_TRACK_MARKER) {
 				outbuf.erase(outbuf.begin());
 				track_marker_found = true;
@@ -737,11 +787,14 @@ void discord_voice_client::write_ready()
 		}
 	}
 	if (duration) {
-		std::chrono::nanoseconds latency = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - last_timestamp);
-		std::chrono::nanoseconds sleep_time = std::chrono::nanoseconds(duration) - latency;
-		if (sleep_time.count() > 0) {
-			std::this_thread::sleep_for(sleep_time);
+		if (type == satype_recorded_audio) {
+			std::chrono::nanoseconds latency = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - last_timestamp);
+			std::chrono::nanoseconds sleep_time = std::chrono::nanoseconds(duration) - latency;
+			if (sleep_time.count() > 0) {
+				std::this_thread::sleep_for(sleep_time);
+			}
 		}
+
 		last_timestamp = std::chrono::high_resolution_clock::now();
 		if (!creator->on_voice_buffer_send.empty()) {
 			voice_buffer_send_t snd(nullptr, "");
@@ -826,7 +879,7 @@ void discord_voice_client::error(uint32_t errorcode)
 	if (i != errortext.end()) {
 		error = i->second;
 	}
-	log(dpp::ll_warning, fmt::format("Voice session error: {} on channel {}: {}", errorcode, channel_id, error));
+	log(dpp::ll_warning, "Voice session error: " + std::to_string(errorcode) + " on channel " + std::to_string(channel_id) + ": " + error);
 
 	/* Errors 4004...4016 except 4014 are fatal and cause termination of the voice session */
 	if (errorcode >= 4003) {
@@ -858,7 +911,7 @@ void discord_voice_client::set_user_gain(snowflake user_id, float factor)
 		 * factor = 10^(x / (20 * 256))
 		 * x = log_10(factor) * 20 * 256
 		 */
-		gain = std::log10(factor) * 20 * 256;
+		gain = static_cast<int16_t>(std::log10(factor) * 20.0f * 256.0f);
 	}
 
 	std::lock_guard lk(voice_courier_shared_state.mtx);
@@ -886,7 +939,7 @@ void discord_voice_client::log(dpp::loglevel severity, const std::string &msg) c
 
 void discord_voice_client::queue_message(const std::string &j, bool to_front)
 {
-	std::lock_guard<std::mutex> locker(queue_mutex);
+	std::unique_lock locker(queue_mutex);
 	if (to_front) {
 		message_queue.emplace_front(j);
 	} else {
@@ -896,18 +949,18 @@ void discord_voice_client::queue_message(const std::string &j, bool to_front)
 
 void discord_voice_client::clear_queue()
 {
-	std::lock_guard<std::mutex> locker(queue_mutex);
+	std::unique_lock locker(queue_mutex);
 	message_queue.clear();
 }
 
 size_t discord_voice_client::get_queue_size()
 {
-	std::lock_guard<std::mutex> locker(queue_mutex);
+	std::shared_lock locker(queue_mutex);
 	return message_queue.size();
 }
 
 const std::vector<std::string> discord_voice_client::get_marker_metadata() {
-	std::lock_guard<std::mutex> locker(queue_mutex);
+	std::shared_lock locker(queue_mutex);
 	return track_meta;
 }
 
@@ -919,7 +972,7 @@ void discord_voice_client::one_second_timer()
 	/* Rate limit outbound messages, 1 every odd second, 2 every even second */
 	if (this->get_state() == CONNECTED) {
 		for (int x = 0; x < (time(nullptr) % 2) + 1; ++x) {
-			std::lock_guard<std::mutex> locker(queue_mutex);
+			std::unique_lock locker(queue_mutex);
 			if (!message_queue.empty()) {
 				std::string message = message_queue.front();
 				message_queue.pop_front();
@@ -960,13 +1013,13 @@ size_t discord_voice_client::encode(uint8_t *input, size_t inDataSize, uint8_t *
 				int retval = opus_repacketizer_cat(repacketizer, out, ret);
 				if (retval != OPUS_OK) {
 					isOk = false;
-					log(ll_warning, fmt::format("opus_repacketizer_cat(): {}", opus_strerror(retval)));
+					log(ll_warning, "opus_repacketizer_cat(): " + std::string(opus_strerror(retval)));
 					break;
 				}
 				out += ret;
 			} else {
 				isOk = false;
-				log(ll_warning, fmt::format("opus_encode(): {}", opus_strerror(ret)));
+					log(ll_warning, "opus_encode(): " + std::string(opus_strerror(ret)));
 				break;
 			}
 		}
@@ -975,11 +1028,11 @@ size_t discord_voice_client::encode(uint8_t *input, size_t inDataSize, uint8_t *
 			if (ret > 0) {
 				outDataSize = ret;
 			} else {
-				log(ll_warning, fmt::format("opus_repacketizer_out(): {}", opus_strerror(ret)));
+				log(ll_warning, "opus_repacketizer_out(): " + std::string(opus_strerror(ret)));
 			}
 		}
 	} else {
-		throw dpp::voice_exception(fmt::format("Invalid input data length: {}, must be n times of {}", inDataSize, mEncFrameBytes));
+		throw dpp::voice_exception("Invalid input data length: " + std::to_string(inDataSize) + ", must be n times of " + std::to_string(mEncFrameBytes));
 	}
 #else
 	throw dpp::voice_exception("Voice support not enabled in this build of D++");
@@ -1031,6 +1084,15 @@ discord_voice_client& discord_voice_client::skip_to_next_marker() {
 discord_voice_client& discord_voice_client::send_silence(const uint64_t duration) {
 	uint8_t silence_packet[3] = { 0xf8, 0xff, 0xfe };
 	send_audio_opus(silence_packet, 3, duration);
+	return *this;
+}
+
+discord_voice_client& discord_voice_client::set_send_audio_type(send_audio_type_t type)
+{
+	{
+		std::lock_guard<std::mutex> lock(this->stream_mutex);
+		send_audio_type = type;
+	}
 	return *this;
 }
 
@@ -1167,14 +1229,7 @@ std::string discord_voice_client::discover_ip() {
 			return "";
 		}
 
-		shutdown(newfd, 2);
-	#ifdef _WIN32
-		if (newfd >= 0 && newfd < FD_SETSIZE) {
-			closesocket(newfd);
-		}
-	#else
-		::close(newfd);
-	#endif
+		close_socket(newfd);
 
 		//utility::debug_dump(packet, 74);
 		return std::string((const char*)(packet + 8));

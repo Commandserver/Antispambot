@@ -23,20 +23,6 @@
 #include <dpp/export.h>
 
 #include <cerrno>
-
-#ifdef _WIN32
-#include <WinSock2.h>
-#include <WS2tcpip.h>
-#include <io.h>
-#else
-#include <netinet/in.h>
-#include <resolv.h>
-#include <netdb.h>
-#include <sys/socket.h>
-#include <netinet/tcp.h>
-#include <unistd.h>
-#endif
-
 #include <cstdio>
 #include <cstdlib>
 #include <sys/types.h>
@@ -56,6 +42,7 @@
 #include <thread>
 #include <deque>
 #include <mutex>
+#include <shared_mutex>
 #include <memory>
 #include <future>
 #include <functional>
@@ -102,7 +89,7 @@ class DPP_EXPORT discord_voice_client : public websocket_client
 	/**
 	 * @brief Mutex for message queue
 	 */
-	std::mutex queue_mutex;
+	std::shared_mutex queue_mutex;
 
 	/**
 	 * @brief Queue of outbound messages
@@ -294,11 +281,6 @@ class DPP_EXPORT discord_voice_client : public websocket_client
 	 * @brief File descriptor for UDP connection
 	 */
 	dpp::socket fd;
-
-	/**
-	 * @brief Socket address of voice server
-	 */
-	sockaddr_in servaddr;
 
 	/**
 	 * @brief Secret key for encrypting voice.
@@ -512,6 +494,34 @@ public:
 	snowflake channel_id;
 
 	/**
+	 * @brief The audio type to be sent. The default type is recorded audio.
+	 *
+	 * If the audio is recorded, the sending of audio packets is throttled.
+	 * Otherwise, if the audio is live, the sending is not throttled.
+	 *
+	 * Discord voice engine is expecting audio data as if they were from
+	 * some audio device, e.g. microphone, where the data become available
+	 * as they get captured from the audio device.
+	 *
+	 * In case of recorded audio, unlike from a device, the audio data are
+	 * usually instantly available in large chunks. Throttling is needed to
+	 * simulate audio data coming from an audio device. In case of live audio,
+	 * the throttling is by nature, so no extra throttling is needed.
+	 *
+	 * Using live audio mode for recorded audio can cause Discord to skip
+	 * audio data because Discord does not expect to receive, say, 3 minutes'
+	 * worth of audio data in 1 second.
+	 *
+	 * Use discord_voice_client::set_send_audio_type to change this value as
+	 * it ensures thread safety.
+	 */
+	enum send_audio_type_t
+	{
+	    satype_recorded_audio,
+	    satype_live_audio,
+	} send_audio_type = satype_recorded_audio;
+
+	/**
 	 * @brief Sets the gain for the specified user.
 	 *
 	 * Similar to the User Volume slider, controls the listening volume per user.
@@ -697,6 +707,13 @@ public:
 	 * @throw dpp::voice_exception if voice support is not compiled into D++
 	 */
 	discord_voice_client& send_silence(const uint64_t duration);
+
+	/**
+	 * @brief Sets the audio type that will be sent with send_audio_* methods.
+	 *
+	 * @see send_audio_type_t
+	 */
+	discord_voice_client& set_send_audio_type(send_audio_type_t type);
 
 	/**
 	 * @brief Set the timescale in nanoseconds.

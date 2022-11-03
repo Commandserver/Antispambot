@@ -21,7 +21,7 @@
 #include <dpp/user.h>
 #include <dpp/discordevents.h>
 #include <dpp/nlohmann/json.hpp>
-#include <dpp/fmt-minimal.h>
+#include <dpp/stringops.h>
 
 using json = nlohmann::json;
 
@@ -77,24 +77,19 @@ std::string user::get_avatar_url(uint16_t size)  const {
 	 * At some point in the future this URL *will* change!
 	 */
 	if (this->avatar.to_string().empty()) {
-		return fmt::format("{}/embed/avatars/{}.png",
-						   utility::cdn_host,
-						   this->discriminator % 5
-		);
+		return utility::cdn_host + "/embed/avatars/" + std::to_string(this->discriminator % 5) + ".png";
 	} else {
-		return fmt::format("{}/avatars/{}/{}{}.{}{}",
-						   utility::cdn_host,
-						   this->id,
-						   (has_animated_icon() ? "a_" : ""),
-						   this->avatar.to_string(),
-						   (has_animated_icon() ? "gif" : "png"),
-						   utility::avatar_size(size)
-		);
+		return utility::cdn_host + "/avatars/" +
+			std::to_string(this->id) +
+			(has_animated_icon() ? "/a_" : "/") +
+			this->avatar.to_string() +
+			(has_animated_icon() ? ".gif" : ".png") +
+			utility::avatar_size(size);
 	}
 }
 
 std::string user::format_username() const {
-	return fmt::format("{0}#{1:04d}", username, discriminator);
+	return username + '#' + leading_zeroes(discriminator, 4);
 }
 
 std::string user::get_mention() const {
@@ -124,6 +119,10 @@ bool user::has_nitro_full() const {
 
 bool user::has_nitro_classic() const {
 	 return this->flags & u_nitro_classic;
+}
+
+bool user::has_nitro_basic() const {
+	return this->flags & u_nitro_basic;
 }
 
 bool user::is_discord_employee() const {
@@ -197,18 +196,16 @@ user_identified& user_identified::fill_from_json(json* j) {
 }
 
 std::string user_identified::get_banner_url(uint16_t size) const {
-    /* XXX: Discord were supposed to change their CDN over to discord.com, they haven't.
+	/* XXX: Discord were supposed to change their CDN over to discord.com, they haven't.
 	 * At some point in the future this URL *will* change!
 	 */
-	if (!this->avatar.to_string().empty()) {
-		return fmt::format("{}/banners/{}/{}{}.{}{}",
-						   utility::cdn_host,
-						   this->id,
-						   (has_animated_icon() ? "a_" : ""),
-						   this->avatar.to_string(),
-						   (has_animated_icon() ? "gif" : "png"),
-						   utility::avatar_size(size)
-		);
+	if (!this->banner.to_string().empty()) {
+		return utility::cdn_host + "/banners/" +
+			std::to_string(this->id) +
+			(has_animated_icon() ? "/a_" : "/") +
+			this->banner.to_string() +
+			(has_animated_icon() ? ".gif" : ".png") +
+			utility::avatar_size(size);
 	} else {
 		return std::string();
 	}
@@ -246,6 +243,7 @@ void from_json(const nlohmann::json& j, user& u) {
 	u.flags |= bool_not_null(&j, "verified") ? dpp::u_verified : 0;
 	u.flags |= int8_not_null(&j, "premium_type") == 1 ? dpp::u_nitro_classic : 0;
 	u.flags |= int8_not_null(&j, "premium_type") == 2 ? dpp::u_nitro_full : 0;
+	u.flags |= int8_not_null(&j, "premium_type") == 3 ? dpp::u_nitro_basic : 0;
 	uint32_t flags = int32_not_null(&j, "flags");
 	flags |= int32_not_null(&j, "public_flags");
 	for (auto & flag : usermap) {

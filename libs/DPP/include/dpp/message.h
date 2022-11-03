@@ -40,10 +40,18 @@ enum component_type : uint8_t {
 	cot_action_row = 1,
 	/// Clickable button
 	cot_button = 2,
-	/// Select menu
+	/// Select menu for picking from defined text options
 	cot_selectmenu = 3,
 	/// Text input
 	cot_text = 4,
+	/// Select menu for users
+	cot_user_selectmenu = 5,
+	/// Select menu for roles
+	cot_role_selectmenu = 6,
+	/// Select menu for mentionables (users and roles)
+	cot_mentionable_selectmenu = 7,
+	/// Select menu for channels
+	cot_channel_selectmenu = 8,
 };
 
 /**
@@ -209,10 +217,6 @@ struct DPP_EXPORT select_option : public json_interface<select_option> {
  * then insert one or more additional components into it
  * using component::add_component(), so that the parent
  * object is an action row and the child objects are buttons.
- *
- * @note At present this only works for whitelisted
- * guilds. The beta is **closed**. When this feature is
- * released, then the functionality will work correctly.
  */
 class DPP_EXPORT component : public json_interface<component> {
 public:
@@ -252,13 +256,13 @@ public:
 	 */
 	std::string placeholder;
 
-	/** Minimum number of selectable values for a select menu.
-	 * -1 to not set this
+	/** Minimum number of items that must be chosen for a select menu.
+	 * Default is -1 to not set this
 	 */
 	int32_t min_values;
 
-	/** Maximum number of selectable values for a select menu.
-	 * -1 to not set this.
+	/** Maximum number of items that can be chosen for a select menu.
+	 * Default is -1 to not set this
 	 */
 	int32_t max_values;
 
@@ -270,9 +274,13 @@ public:
 	 */
 	int32_t max_length;
 
-	/** Select options for select menus
+	/** Select options for select menus. Only required and available for select menus of type dpp::cot_selectmenu
 	 */
 	std::vector<select_option> options;
+
+	/** List of channel types (dpp::channel_type) to include in the channel select component (dpp::cot_channel_selectmenu)
+	 */
+	std::vector<uint8_t> channel_types;
 
 	/** Disabled flag (for buttons)
 	 */
@@ -322,6 +330,14 @@ public:
 	virtual ~component() = default;
 
 	/**
+	 * @brief Add a channel type to include in the channel select component (dpp::cot_channel_selectmenu)
+	 *
+	 * @param ct The dpp::channel_type
+	 * @return component& reference to self
+	 */
+	component& add_channel_type(uint8_t ct);
+
+	/**
 	 * @brief Set the type of the component. Button components
 	 * (type dpp::cot_button) should always be contained within
 	 * an action row (type dpp::cot_action_row). As described
@@ -358,7 +374,7 @@ public:
 	 * For action rows, this field is ignored. Setting the
 	 * value will auto-set the type to dpp::cot_text.
 	 *
-	 * @param value Value text to set. It will be truncated to the maximum length of 4000 UTF-8 characters.
+	 * @param val Value text to set. It will be truncated to the maximum length of 4000 UTF-8 characters.
 	 * @return component& Reference to self
 	 */
 	component& set_default_value(const std::string &val);
@@ -435,7 +451,7 @@ public:
 	/**
 	 * @brief Set the max value
 	 * 
-	 * @param max_values max value to set
+	 * @param max_values max value to set (0 - 25)
 	 * @return component& Reference to self
 	 */
 	component& set_max_values(uint32_t max_values);
@@ -443,7 +459,7 @@ public:
 	/**
 	 * @brief Set the min length of text input
 	 * 
-	 * @param min_l min value to set
+	 * @param min_l min value to set (0 - 25)
 	 * @return component& Reference to self
 	 */
 	component& set_min_length(uint32_t min_l);
@@ -754,6 +770,8 @@ struct DPP_EXPORT attachment {
 	uint32_t size;
 	/** File name of the attachment */
 	std::string filename;
+	/** Optional: Description of the attachment (max 1024 characters) */
+	std::string description;
 	/** URL which points to the attachment */
 	std::string url;
 	/** Proxied URL which points to the attachment */
@@ -792,8 +810,8 @@ struct DPP_EXPORT attachment {
 	 * @param callback A callback which is called when the download completes.
 	 * @note The content of the file will be in the http_info.body parameter of the
 	 * callback parameter.
-	 * @throw dpp::exception If there is no owner associated with this attachment that
-	 * itself has an owning cluster, this method will throw a dpp::exception when called.
+	 * @throw dpp::logic_exception If there is no owner associated with this attachment that
+	 * itself has an owning cluster, this method will throw a dpp::logic_exception when called.
 	 */
 	void download(http_completion_event callback) const;
 };
@@ -942,7 +960,7 @@ struct DPP_EXPORT sticker_pack : public managed, public json_interface<sticker_p
 /**
  * @brief Bitmask flags for a dpp::message
  */
-enum message_flags {
+enum message_flags : uint16_t {
 	/// this message has been published to subscribed channels (via Channel Following)
 	m_crossposted = 1 << 0,
 	/// this message originated from a message in another channel (via Channel Following)
@@ -958,7 +976,9 @@ enum message_flags {
 	/// this message is only visible to the user who invoked the Interaction
 	m_ephemeral = 1 << 6,
 	/// this message is an Interaction Response and the bot is "thinking"
-	m_loading = 1 << 7
+	m_loading = 1 << 7,
+	/// this message failed to mention some roles and add their members to the thread
+	m_thread_mention_failed = 1 << 8,
 };
 
 /**
@@ -1121,10 +1141,6 @@ struct DPP_EXPORT message : public managed {
 	time_t		sent;
 	/** when this message was edited (may be 0 if never edited) */
 	time_t		edited;
-	/** whether this was a TTS message */
-	bool		tts;
-	/** whether this message mentions everyone */
-	bool   		mention_everyone;
 	/** users specifically mentioned in the message */
 	std::vector<std::pair<user, guild_member>>	mentions;
 	/** roles specifically mentioned in this message (only IDs currently)*/
@@ -1140,12 +1156,8 @@ struct DPP_EXPORT message : public managed {
 	std::vector<reaction> reactions;
 	/** Optional: used for validating a message was sent */
 	std::string	nonce;
-	/** whether this message is pinned */
-	bool		pinned;
 	/** Optional: if the message is generated by a webhook, its id will be here otherwise the field will be 0 */
 	snowflake	webhook_id;
-	/** Flags */
-	uint8_t		flags;
 	/** Stickers */
 	std::vector<sticker> stickers;
 
@@ -1154,9 +1166,6 @@ struct DPP_EXPORT message : public managed {
 
 	/** File content to upload (raw binary) */
 	std::vector<std::string>	filecontent;
-
-	/** Message type */
-	message_type type;
 
 	/**
 	 * @brief Reference to another message, e.g. a reply
@@ -1191,19 +1200,19 @@ struct DPP_EXPORT message : public managed {
 	 */
 	struct allowed_ref {
 		/**
-		 * @brief Set to true to parse user mentions in the text
+		 * @brief Set to true to parse user mentions in the text. Default is false
 		 */
 		bool parse_users;
 		/**
-		 * @brief Set to true to at-everyone and at-here mentions in the text
+		 * @brief Set to true to at-everyone and at-here mentions in the text. Default is false
 		 */
 		bool parse_everyone;
 		/**
-		 * @brief Set to true to parse role mentions in the text
+		 * @brief Set to true to parse role mentions in the text. Default is false
 		 */
 		bool parse_roles;
 		/**
-		 * @brief Set to true to mention the user who sent the message this one is replying to
+		 * @brief Set to true to mention the user who sent the message this one is replying to. Default is false
 		 */
 		bool replied_user;
 		/**
@@ -1220,6 +1229,19 @@ struct DPP_EXPORT message : public managed {
 	 * @brief The cluster which created this message object
 	 */
 	class cluster* owner;
+
+	/** Message type */
+	message_type type;
+
+	/** Flags. Made of bits in dpp::message_flags */
+	uint16_t		flags;
+
+	/** whether this message is pinned */
+	bool		pinned;
+	/** whether this was a TTS message */
+	bool		tts;
+	/** whether this message mentions everyone */
+	bool   		mention_everyone;
 
 	/**
 	 * @brief Construct a new message object
@@ -1243,7 +1265,7 @@ struct DPP_EXPORT message : public managed {
 	 * @brief Construct a new message object with a channel and content
 	 *
 	 * @param channel_id The channel to send the message to
-	 * @param content The content of the message. It will be truncated to the maximum length of 2000 UTF-8 characters.
+	 * @param content The content of the message. It will be truncated to the maximum length of 4000 UTF-8 characters.
 	 * @param type The message type to create
 	 */
 	message(snowflake channel_id, const std::string &content, message_type type = mt_default);
@@ -1259,7 +1281,7 @@ struct DPP_EXPORT message : public managed {
 	/**
 	 * @brief Construct a new message object with content
 	 *
-	 * @param content The content of the message. It will be truncated to the maximum length of 2000 UTF-8 characters.
+	 * @param content The content of the message. It will be truncated to the maximum length of 4000 UTF-8 characters.
 	 * @param type The message type to create
 	 */
 	message(const std::string &content, message_type type = mt_default);
@@ -1311,7 +1333,7 @@ struct DPP_EXPORT message : public managed {
 	bool is_crossposted() const;
 
 	/**
-	 * @brief Returns true if posted from other servers news channel via webhook
+	 * @brief Returns true if posted from other servers announcement channel via webhook
 	 * 
 	 * @return true if posted from other server
 	 */
@@ -1360,6 +1382,13 @@ struct DPP_EXPORT message : public managed {
 	bool is_loading() const;
 
 	/**
+	 * @brief Returns true if this message failed to mention some roles and add their members to the thread
+	 *
+	 * @return true if this message failed to mention some roles and add their members to the thread
+	 */
+	bool is_thread_mention_failed() const;
+
+	/**
 	 * @brief Add a component (button) to message
 	 * 
 	 * @param c component to add
@@ -1378,10 +1407,10 @@ struct DPP_EXPORT message : public managed {
 	/**
 	 * @brief Set the flags
 	 * 
-	 * @param f flags to set
+	 * @param f flags to set from dpp::message_flags
 	 * @return message& reference to self
 	 */
-	message& set_flags(uint8_t f);
+	message& set_flags(uint16_t f);
 
 	/**
 	 * @brief Set the message type
@@ -1396,6 +1425,7 @@ struct DPP_EXPORT message : public managed {
 	 * 
 	 * @param fn filename
 	 * @return message& reference to self
+	 * @deprecated Use message::add_file instead
 	 */
 	message& set_filename(const std::string &fn);
 
@@ -1404,6 +1434,7 @@ struct DPP_EXPORT message : public managed {
 	 * 
 	 * @param fc raw file content contained in std::string
 	 * @return message& reference to self
+	 * @deprecated Use message::add_file instead
 	 */
 	message& set_file_content(const std::string &fc);
 
@@ -1419,7 +1450,7 @@ struct DPP_EXPORT message : public managed {
 	/**
 	 * @brief Set the message content
 	 * 
-	 * @param c message content. It will be truncated to the maximum length of 2000 UTF-8 characters.
+	 * @param c message content. It will be truncated to the maximum length of 4000 UTF-8 characters.
 	 * @return message& reference to self
 	 */
 	message& set_content(const std::string &c);

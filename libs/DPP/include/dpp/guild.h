@@ -20,10 +20,12 @@
  ************************************************************************************/
 #pragma once
 #include <dpp/export.h>
+#include <dpp/user.h>
 #include <dpp/snowflake.h>
 #include <dpp/managed.h>
 #include <dpp/utility.h>
 #include <dpp/voicestate.h>
+#include <dpp/permissions.h>
 #include <string>
 #include <unordered_map>
 #include <dpp/json_interface.h>
@@ -76,9 +78,11 @@ enum guild_flags : uint32_t {
 	g_partnered =				0b00000000000000000000000010000000,
 	/** Community features enabled */
 	g_community =				0b00000000000000000000000100000000,
-	/** Guild has commerce features enabled */
+	/** Guild has commerce features enabled
+	 * @deprecated Removed by Discord
+	 */
 	g_commerce =				0b00000000000000000000001000000000,
-	/** Guild has news features enabled */
+	/** Guild has access to create announcement channels */
 	g_news =				0b00000000000000000000010000000000,
 	/** Guild is discoverable in discovery */
 	g_discoverable =			0b00000000000000000000100000000000,
@@ -134,10 +138,15 @@ enum guild_flags_extra : uint8_t {
 	g_animated_banner =			0b00000010,
 	/** Guild has auto moderation */
 	g_auto_moderation =			0b00000100,
+	/** Guild has paused invites, preventing new users from joining */
+	g_invites_disabled =		0b00001000,
+	/** Guild has been set as support server of an app in the App Directory */
+	g_developer_support_server =	0b00010000,
 };
 
 /**
- * @brief Various flags that can be used to indicate the status of a guild member
+ * @brief Various flags that can be used to indicate the status of a guild member.
+ * @note Use set_mute and set_deaf member functions and do not toggle the bits yourself.
  */
 enum guild_member_flags : uint8_t {
 	/** Member deafened in voice channels */
@@ -148,6 +157,8 @@ enum guild_member_flags : uint8_t {
 	gm_pending =		0b00100,
 	/** Member has animated guild-specific avatar */
 	gm_animated_avatar = 	0b01000,
+	/** gm_deaf or gm_mute has been toggled */
+	gm_voice_action = 			0b10000,
 };
 
 /**
@@ -252,6 +263,14 @@ public:
 	 * @return guild_member& reference to self
 	 */
 	guild_member& set_nickname(const std::string& nick);
+
+	/**
+	 * @brief Get the dpp::user object for this member
+	 * @return dpp::user user object. If not in cache, it returns nullptr
+	 *
+	 * 
+	 */
+	dpp::user* get_user() const;
 
 	/**
 	 * @brief Set whether the user is muted in voice channels
@@ -370,6 +389,48 @@ enum verification_level_t : uint8_t {
 	ver_very_high =	4,
 };
 
+/**
+ * @brief Default message notification level
+ */
+enum default_message_notification_t: uint8_t {
+	/// members will receive notifications for all messages by default
+	dmn_all = 0,
+	///	members will receive notifications only for messages that \@mention them by default
+	dmn_only_mentions = 1,
+};
+
+/**
+ * @brief Premium tier
+ */
+enum guild_premium_tier_t: uint8_t {
+	/// guild has not unlocked any Server Boost perks
+	tier_none = 0,
+	/// guild has unlocked Server Boost level 1 perks
+	tier_1 = 1,
+	/// guild has unlocked Server Boost level 2 perks
+	tier_2 = 2,
+	/// guild has unlocked Server Boost level 3 perks
+	tier_3 = 3,
+};
+
+/**
+ * @brief Voice AFK timeout values for guild::afk_timeout
+ */
+enum guild_afk_timeout_t: uint8_t {
+	/// AFK timeout disabled
+	afk_off,
+	/// AFK timeout of 1 Minute
+	afk_60,
+	/// AFK timeout of 5 Minutes
+	afk_300,
+	/// AFK timeout of 15 Minutes
+	afk_900,
+	/// AFK timeout of 30 Minutes
+	afk_1800,
+	/// AFK timeout of 1 Hour
+	afk_3600,
+};
+
 /** @brief Guild members container
  */
 typedef std::unordered_map<snowflake, guild_member> members_container;
@@ -477,17 +538,17 @@ public:
 	/** Number of boosters */
 	uint16_t premium_subscription_count;
 
-	/** Maximum users in a video channel, or 0 */
-	uint16_t max_video_channel_users;
-
 	/** Voice AFK timeout before moving users to AFK channel */
-	uint8_t afk_timeout;
+	guild_afk_timeout_t afk_timeout;
+
+	/** Maximum users in a video channel, or 0 */
+	uint8_t max_video_channel_users;
 
 	/** Setting for how notifications are to be delivered to users */
-	uint8_t default_message_notifications;
+	default_message_notification_t default_message_notifications;
 
 	/** Boost level */
-	uint8_t premium_tier;
+	guild_premium_tier_t premium_tier;
 
 	/** Verification level of server */
 	verification_level_t verification_level;
@@ -536,25 +597,58 @@ public:
 	std::string build_json(bool with_id = false) const;
 
 	/**
-	 * @brief Get the base permissions for a member on this guild,
-	 * before permission overwrites are applied.
+	 * @brief Compute the base permissions for a member on this guild,
+	 * before channel overwrites are applied.
+	 * This method takes into consideration the following cases:
+	 *   - Guild owner
+	 *   - Guild roles including \@everyone
 	 *
-	 * @param member member to get permissions for
-	 * @return uint64_t permissions bitmask
+	 * @param user User to get permissions for
+	 * @return permission permissions bitmask
+	 * @note Requires role cache to be enabled (it's enabled by default).
+	 *
+	 * @warning The method will search for the guild member in the cache by the users id.
+	 * If the guild member is not in cache, the method will always return 0.
 	 */
-	uint64_t base_permissions(const class user* member) const;
+	permission base_permissions(const class user* user) const;
 
 	/**
-	 * @brief Get the permission overwrites for a member
-	 * merged into a bitmask.
+	 * @brief Compute the base permissions for a member on this guild,
+	 * before channel overwrites are applied.
+	 * This method takes into consideration the following cases:
+	 *   - Guild owner
+	 *   - Guild roles including \@everyone
+	 *
+	 * @param member member to get permissions for
+	 * @return permission permissions bitmask
+	 * @note Requires role cache to be enabled (it's enabled by default).
+	 */
+	permission base_permissions(const guild_member &member) const;
+
+	/**
+	 * @brief Get the overall permissions for a member in this channel, including channel overwrites, role permissions and admin privileges.
 	 *
 	 * @param base_permissions base permissions before overwrites,
-	 * from channel::base_permissions
-	 * @param member Member to fetch permissions for
-	 * @param channel Channel to fetch permissions against
-	 * @return uint64_t Merged permissions bitmask of overwrites.
+	 * from guild::base_permissions
+	 * @param user The user to resolve the permissions for
+	 * @param channel Channel to compute permission overwrites for
+	 * @return permission Permission overwrites for the member. Made of bits in dpp::permissions.
+	 * @note Requires role cache to be enabled (it's enabled by default).
+	 *
+	 * @warning The method will search for the guild member in the cache by the users id.
+	 * If the guild member is not in cache, the method will always return 0.
 	 */
-	uint64_t permission_overwrites(const uint64_t base_permissions, const user*  member, const channel* channel) const;
+	permission permission_overwrites(const uint64_t base_permissions, const user* user, const channel* channel) const;
+
+	/**
+	 * @brief Get the overall permissions for a member in this channel, including channel overwrites, role permissions and admin privileges.
+	 *
+	 * @param member The member to resolve the permissions for
+	 * @param channel Channel to compute permission overwrites for
+	 * @return permission Permission overwrites for the member. Made of bits in dpp::permissions.
+	 * @note Requires role cache to be enabled (it's enabled by default).
+	 */
+	permission permission_overwrites(const guild_member &member, const channel &channel) const;
 
 	/**
 	 * @brief Rehash members map
@@ -568,6 +662,9 @@ public:
 	 * @param self_mute True if the bot should mute itself
 	 * @param self_deaf True if the bot should deafen itself
 	 * @return True if the user specified is in a vc, false if they aren't
+	 * @note This is NOT a synchronous blocking call! The bot isn't instantly ready to send or listen for audio,
+	 * as we have to wait for the connection to the voice server to be established!
+	 * e.g. wait for dpp::cluster::on_voice_ready event, and then send the audio within that event.
 	 */
 	bool connect_member_voice(snowflake user_id, bool self_mute = false, bool self_deaf = false);
 
@@ -669,12 +766,13 @@ public:
 	/**
 	 * @brief Guild has access to use commerce features
 	 * @return bool has commerce features enabled
+	 * @deprecated Removed by Discord
 	 */
 	bool has_commerce() const;
 
 	/**
-	 * @brief Guild has access to create news channels
-	 * @return bool has news channels features enabled
+	 * @brief Guild has access to create announcement channels
+	 * @return bool has announcement channels features enabled
 	 */
 	bool has_news() const;
 
@@ -701,6 +799,12 @@ public:
 	 * @return bool has auto moderation features
 	 */
 	bool has_auto_moderation() const;
+
+	/**
+	 * @brief Guild has been set as a support server on the App Directory
+	 * @return bool has been set as a support server of an app in the app directory
+	 */
+	bool has_support_server() const;
 
 	/**
 	 * @brief Guild has access to set an animated guild icon
@@ -798,6 +902,12 @@ public:
 	 * @return bool has progress bar enabled
 	 */
 	bool has_premium_progress_bar_enabled() const;
+
+	/**
+	 * @brief True if has paused invites, preventing new users from joining
+	 * @return bool has paused invites
+	 */
+	bool has_invites_disabled() const;
 };
 
 /** A container of guilds */

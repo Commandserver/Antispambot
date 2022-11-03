@@ -89,17 +89,17 @@ public:
 	snowflake role_id;
 	/** User id */
 	snowflake user_id;
-	/** Expiry grace period */
+	/** The grace period (in days) before expiring subscribers */
 	uint32_t expire_grace_period;
 	/** Sync time */
 	time_t synced_at;
 	/** Subscriber count */
 	uint32_t subscriber_count;
-	/* Account id */
+	/** Account id */
 	std::string account_id;
-	/* Account name */
+	/** Account name */
 	std::string account_name;
-	/* Integration application */
+	/** The bot/OAuth2 application for discord integrations */
 	integration_app app;
 
 	/** Default constructor */
@@ -145,6 +145,7 @@ public:
 	bool				verified;	//!< whether the connection is verified
 	bool				friend_sync;	//!< whether friend sync is enabled for this connection
 	bool				show_activity;	//!< whether activities related to this connection will be shown in presence updates
+	bool				two_way_link;	//!< Whether this connection has a corresponding third party OAuth2 token
 	bool				visible;	//!< visibility of this connection
 
 	/**
