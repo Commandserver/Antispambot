@@ -41,7 +41,7 @@ The bot creates the following slash commands:
 
 **Included dependencies (in the `/libs` folder)**
 
-* [DPP](https://github.com/brainboxdotcc/DPP) (version 10.0.20)
+* [DPP](https://github.com/brainboxdotcc/DPP) (version 10.0.21)
 * [spdlog](https://github.com/gabime/spdlog)
 
 ## Supported Platforms

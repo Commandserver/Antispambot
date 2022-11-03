@@ -121,6 +121,10 @@ bool user::has_nitro_classic() const {
 	 return this->flags & u_nitro_classic;
 }
 
+bool user::has_nitro_basic() const {
+	return this->flags & u_nitro_basic;
+}
+
 bool user::is_discord_employee() const {
 	 return this->flags & u_discord_employee;
 }
@@ -192,7 +196,7 @@ user_identified& user_identified::fill_from_json(json* j) {
 }
 
 std::string user_identified::get_banner_url(uint16_t size) const {
-    /* XXX: Discord were supposed to change their CDN over to discord.com, they haven't.
+	/* XXX: Discord were supposed to change their CDN over to discord.com, they haven't.
 	 * At some point in the future this URL *will* change!
 	 */
 	if (!this->banner.to_string().empty()) {
@@ -239,6 +243,7 @@ void from_json(const nlohmann::json& j, user& u) {
 	u.flags |= bool_not_null(&j, "verified") ? dpp::u_verified : 0;
 	u.flags |= int8_not_null(&j, "premium_type") == 1 ? dpp::u_nitro_classic : 0;
 	u.flags |= int8_not_null(&j, "premium_type") == 2 ? dpp::u_nitro_full : 0;
+	u.flags |= int8_not_null(&j, "premium_type") == 3 ? dpp::u_nitro_basic : 0;
 	uint32_t flags = int32_not_null(&j, "flags");
 	flags |= int32_not_null(&j, "public_flags");
 	for (auto & flag : usermap) {
