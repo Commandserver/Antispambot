@@ -79,7 +79,7 @@ The bot creates discord slash commands to manage the above three _.txt_-configs,
 
 The bot requires the **message content** and **server members** intent to be enabled!
 Add the bot with the `bot` and `applications.commands` scope to your server!
-The bot needs at least the following permissions: `VIEW_CHANNEL`, `SEND_MESSAGES`, `MANAGE_MESSAGES`, `MANAGE_THREADS`, `MODERATE_MEMBERS`.
+The bot needs at least the following permissions: `VIEW_CHANNEL`, `SEND_MESSAGES`, `MANAGE_MESSAGES`, `MANAGE_THREADS`, `MODERATE_MEMBERS`, `BAN_MEMBERS`, `KICK_MEMBERS`.
 
 <hr>
 
