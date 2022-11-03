@@ -1,6 +1,8 @@
 #include <dpp/dpp.h>
 #include <thread>
 
+#define MAX_FILE_SIZE 8000000
+
 dpp::permission permissions_massban() {
 	return dpp::p_ban_members;
 }
@@ -77,7 +79,7 @@ void handle_massban(dpp::cluster& bot, const dpp::slashcommand_t& event) {
 		}
 	}
 	// truncate the file to 8 MB to ensure the file can be uploaded to discord
-	file = dpp::utility::utf8substr(file, 0, 8000000);
+	file = dpp::utility::utf8substr(file, 0, MAX_FILE_SIZE);
 
 
 	auto confirm_component = dpp::component()
@@ -144,6 +146,8 @@ void handle_massban(dpp::cluster& bot, const dpp::slashcommand_t& event) {
 				for (const auto &id: success) {
 					users += std::to_string(id) + "\n";
 				}
+				// truncate the users-file to 8 MB to ensure the file can be uploaded to discord
+				users = dpp::utility::utf8substr(users, 0, MAX_FILE_SIZE);
 				m.add_file("successfully-banned-users.txt", users);
 			}
 			if (!failures.empty()) {
@@ -151,6 +155,8 @@ void handle_massban(dpp::cluster& bot, const dpp::slashcommand_t& event) {
 				for (const auto &id: failures) {
 					users += std::to_string(id) + "\n";
 				}
+				// truncate the users-file to 8 MB to ensure the file can be uploaded to discord
+				users = dpp::utility::utf8substr(users, 0, MAX_FILE_SIZE);
 				m.add_file("failed-user-bans.txt", users);
 			}
 			bot.message_create_sync(m);
