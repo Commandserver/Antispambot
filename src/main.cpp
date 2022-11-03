@@ -9,11 +9,9 @@
 #include <regex>
 #include <algorithm>
 #include <set>
-#include <ctime>
 
 #include "ButtonHandler.hpp"
 
-#include "JsonFile.h"
 #include "utils.hpp"
 #include "ConfigSet.h"
 #include "CachedGuildMember.h"
@@ -319,7 +317,7 @@ int main() {
 		 */
 		if (event.msg.is_crosspost() or event.msg.is_crossposted() or event.msg.author.is_system() or
 			event.msg.author.is_bot() or event.msg.author.id == bot.me.id or
-			(event.msg.type != dpp::mt_default and event.msg.type != dpp::mt_reply)) {
+			(event.msg.type != dpp::mt_default and event.msg.type != dpp::mt_reply and event.msg.type != dpp::mt_thread_starter_message)) {
 			return;
 		}
 

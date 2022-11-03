@@ -1,10 +1,9 @@
 {
-    "token": "OTE5MTc0MzQ4OTc0MjA3MDE3.YbR90g.Qsg1ITnkBunmTnBDc6roI3J7MWw",
+    "token": "YOUR TOKEN",
     "log-filename": "latest.log",
     "thread-rate-limit": 3,
-    "log-channel-id": 845270302471487518,
-    "log-webhook-url": "https://discord.com/api/webhooks/984535435302797342/VGCiwUxZxuH4LW6RrVeoNxTClkWkE9AXIRrJ_yhNmgeCG2vNqXkEtwhp91_iAiTKtiSX",
-    "guild-id": 938499352297406484,
+    "log-channel-id": 845270302471487515,
+    "guild-id": 788499352297406484,
     "excluded_channel_ids": [
         123456
     ],

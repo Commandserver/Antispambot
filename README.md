@@ -28,10 +28,11 @@ You can configure users and roles that are excluded.
 
 The bot creates the following slash commands:
 
-| Slash command | description |
-|---------------|-------------|
+| Slash command | description                                                                                        |
+|---------------|----------------------------------------------------------------------------------------------------|
 | `/manage`     | To configurate excluded roles and users as well as managing the blacklisted domains and bad words. |
-| `/info`       | Information about the bot |
+| `/info`       | Information about the bot                                                                          |
+| `/massban`    | Ban command to easily ban suspicious accounts                                                      |
 
 ## Dependencies
 
