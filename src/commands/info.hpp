@@ -16,6 +16,7 @@ void handle_info(dpp::cluster& bot, const dpp::slashcommand_t& event) {
 							.set_description("A Discord Bot to protect your server from spam, invitations, fake nitro ads and more written in C++")
 							.add_field("Uptime", bot.uptime().to_string(), true)
 							.add_field("Users", std::to_string(dpp::get_user_count()), true)
+							.add_field("Servers", std::to_string(dpp::get_guild_count()), true)
 							.add_field("Library Version", fmt::format("[{}]({})", dpp::utility::version(), "https://github.com/brainboxdotcc/DPP"), true)
 							.set_footer("Project available on GitHub", "https://github.com/fluidicon.png")
 			)

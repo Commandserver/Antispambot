@@ -20,6 +20,7 @@ add_executable(${PROJECT_NAME}
         src/commands/info.hpp
         src/commands/manage.hpp
         src/commands/massban.hpp
+        src/commands/masskick.hpp
         )
 
 # Linking libraries

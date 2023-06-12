@@ -19,6 +19,7 @@
 #include "commands/info.hpp"
 #include "commands/manage.hpp"
 #include "commands/massban.hpp"
+#include "commands/masskick.hpp"
 
 #define DAY 86400 //!< amount of seconds of a day
 #define MINUTE 60 //!< amount of seconds of a minute
@@ -94,6 +95,7 @@ int main() {
 					definition_info(),
 					definition_manage(),
 					definition_massban(),
+					definition_masskick(),
 			};
 
 			bot.guild_bulk_command_create(commands, config["guild-id"].get<std::uint64_t>(), [&bot](const dpp::confirmation_callback_t &event) {
@@ -114,6 +116,8 @@ int main() {
 			handle_info(bot, event);
 		} else if (event.command.get_command_name() == "massban") {
 			handle_massban(bot, event);
+		} else if (event.command.get_command_name() == "masskick") {
+			handle_masskick(bot, event);
 		}
 	});
 
@@ -232,7 +236,7 @@ int main() {
 			msg.channel_id = config["log-channel-id"].get<std::uint64_t>();
 			msg.add_embed(embed);
 			msg.add_file("users.txt", file);
-			bot.message_create(msg, [&log, msg](const dpp::confirmation_callback_t &c) {
+			bot.message_create(msg, [&log](const dpp::confirmation_callback_t &c) {
 				if (c.is_error()) {
 					log->error("error while sending the log message: " + c.http_info.body);
 				}
