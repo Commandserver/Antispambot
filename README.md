@@ -33,6 +33,7 @@ The bot creates the following slash commands:
 | `/manage`     | To configurate excluded roles and users as well as managing the blacklisted domains and bad words. |
 | `/info`       | Information about the bot                                                                          |
 | `/massban`    | Ban command to easily ban suspicious accounts                                                      |
+| `/masskick`   | kick command to easily kick suspicious accounts                                                    |
 
 ## Dependencies
 
