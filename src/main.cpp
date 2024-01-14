@@ -10,11 +10,11 @@
 #include <algorithm>
 #include <set>
 
-#include "ButtonHandler.hpp"
+#include "classes/ButtonHandler.hpp"
 
 #include "utils.hpp"
-#include "ConfigSet.h"
-#include "CachedGuildMember.h"
+#include "classes/ConfigSet.h"
+#include "classes/CachedGuildMember.h"
 
 #include "commands/info.hpp"
 #include "commands/manage.hpp"
