@@ -28,10 +28,12 @@ You can configure users and roles that are excluded.
 
 The bot creates the following slash commands:
 
-| Slash command | description |
-|---------------|-------------|
+| Slash command | description                                                                                        |
+|---------------|----------------------------------------------------------------------------------------------------|
 | `/manage`     | To configurate excluded roles and users as well as managing the blacklisted domains and bad words. |
-| `/info`       | Information about the bot |
+| `/info`       | Information about the bot                                                                          |
+| `/massban`    | Ban command to easily ban suspicious accounts                                                      |
+| `/masskick`   | kick command to easily kick suspicious accounts                                                    |
 
 ## Dependencies
 
@@ -78,7 +80,7 @@ The bot creates discord slash commands to manage the above three _.txt_-configs,
 
 The bot requires the **message content** and **server members** intent to be enabled!
 Add the bot with the `bot` and `applications.commands` scope to your server!
-The bot needs at least the following permissions: `VIEW_CHANNEL`, `SEND_MESSAGES`, `MANAGE_MESSAGES`, `MANAGE_THREADS`, `MODERATE_MEMBERS`.
+The bot needs at least the following permissions: `VIEW_CHANNEL`, `SEND_MESSAGES`, `MANAGE_MESSAGES`, `MANAGE_THREADS`, `MODERATE_MEMBERS`, `BAN_MEMBERS`, `KICK_MEMBERS`.
 
 <hr>
 

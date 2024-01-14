@@ -12,16 +12,14 @@ add_executable(${PROJECT_NAME}
         src/main.cpp
         # your others files...
         src/utils.hpp
-        src/ConfigSet.cpp
-        src/ConfigSet.h
-        src/ButtonHandler.hpp
-        src/JsonFile.cpp
-        src/JsonFile.h
-        src/CachedGuildMember.cpp
-        src/CachedGuildMember.h
+        src/classes/ConfigSet.cpp
+        src/classes/ConfigSet.h
+        src/classes/ButtonHandler.hpp
+        src/classes/CachedGuildMember.cpp
         src/commands/info.hpp
         src/commands/manage.hpp
         src/commands/massban.hpp
+        src/commands/masskick.hpp
         )
 
 # Linking libraries
