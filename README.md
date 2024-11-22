@@ -68,7 +68,7 @@ Visit the [D++ library documentation](https://dpp.dev/) for more details.
 
 ## Configuration and Running
 
-Edit the `config.json`. The configuration variables in the file should be self-explanatory.
+Rename the `config.json.dist` to `config.json` and configure it. The configuration variables in the file should be self-explanatory.
 
 All bad words are saved line by line in the `bad-words.txt`.
 
