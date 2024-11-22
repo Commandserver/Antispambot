@@ -16,20 +16,14 @@ dpp::slashcommand definition_masskick() {
 			.add_option(dpp::command_option(dpp::co_user, "last", "The user who joined last", true));
 }
 
-inline dpp::task<bool> triggerMassKick(dpp::cluster& bot, std::set<dpp::snowflake> users, dpp::snowflake slashCommandAuthorId, const dpp::button_click_t &event) {
-	// check if the user is the invoking user of the slash command
-	if (slashCommandAuthorId != event.command.usr.id) {
-		event.reply(dpp::message("You can't trigger that button").set_flags(dpp::m_ephemeral));
-		co_return false;
-	}
-
+inline dpp::task<bool> triggerMassKick(dpp::cluster& bot, std::set<dpp::snowflake> users, const dpp::button_click_t &event) {
 	event.reply(dpp::message("Mass kick started! Please wait..."));
 
 	bot.log(dpp::ll_info, "mass kick startet in new thread with " + std::to_string(users.size()) + " users");
 
 	std::set<dpp::snowflake> success;
 	std::set<dpp::snowflake> failures;
-	std::string kickReason = "mass kick by " + std::to_string(slashCommandAuthorId) + " at " + formatTime(time(nullptr));
+	std::string kickReason = "mass kick by " + std::to_string(event.command.usr.id) + " at " + formatTime(time(nullptr));
 
 	for (const auto& id : users) {
 		auto confirmation = co_await bot.set_audit_reason(kickReason).co_guild_member_kick(event.command.guild_id, id);
@@ -126,7 +120,12 @@ dpp::task<void> handle_masskick(dpp::cluster& bot, const dpp::slashcommand_t& ev
 			.set_style(dpp::cos_danger);
 
 	ButtonHandler::bind(confirm_component, [&bot, users_to_kick, sourceId = event.command.usr.id](const dpp::button_click_t &event) -> dpp::task<bool> {
-		co_return co_await triggerMassKick(bot, users_to_kick, sourceId, event);
+		// check if the user is the invoking user of the slash command
+		if (sourceId != event.command.usr.id) {
+			event.reply(dpp::message("You can't trigger that button").set_flags(dpp::m_ephemeral));
+			co_return false;
+		}
+		co_return co_await triggerMassKick(bot, users_to_kick, event);
 	});
 
 	auto cancel_confirm = dpp::component()

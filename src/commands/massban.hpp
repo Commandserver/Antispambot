@@ -13,20 +13,14 @@ dpp::slashcommand definition_massban() {
 			.add_option(dpp::command_option(dpp::co_user, "last", "The user who joined last", true));
 }
 
-inline dpp::task<bool> triggerMassBan(dpp::cluster& bot, std::set<dpp::snowflake> users, dpp::snowflake slashCommandAuthorId, const dpp::button_click_t &event) {
-	// check if the user is the invoking user of the slash command
-	if (slashCommandAuthorId != event.command.usr.id) {
-		event.reply(dpp::message("You can't trigger that button").set_flags(dpp::m_ephemeral));
-		co_return false;
-	}
-
+inline dpp::task<bool> triggerMassBan(dpp::cluster& bot, std::set<dpp::snowflake> users, const dpp::button_click_t &event) {
 	event.reply(dpp::message("Mass ban started! Please wait..."));
 
 	bot.log(dpp::ll_info, "mass ban startet in new thread with " + std::to_string(users.size()) + " users");
 
 	std::set<dpp::snowflake> success;
 	std::set<dpp::snowflake> failures;
-	std::string banReason = "mass ban by " + std::to_string(slashCommandAuthorId) + " at " + formatTime(time(nullptr));
+	std::string banReason = "mass ban by " + std::to_string(event.command.usr.id) + " at " + formatTime(time(nullptr));
 
 	for (const auto& id : users) {
 		auto confirmation = co_await bot.set_audit_reason(banReason).co_guild_ban_add(event.command.guild_id, id);
@@ -123,7 +117,12 @@ dpp::task<void> handle_massban(dpp::cluster& bot, const dpp::slashcommand_t& eve
 			.set_style(dpp::cos_danger);
 
 	ButtonHandler::bind(confirm_component, [&bot, users_to_ban, sourceId = event.command.usr.id](const dpp::button_click_t &event) -> dpp::task<bool> {
-		co_return co_await triggerMassBan(bot, users_to_ban, sourceId, event);
+		// check if the user is the invoking user of the slash command
+		if (sourceId != event.command.usr.id) {
+			event.reply(dpp::message("You can't trigger that button").set_flags(dpp::m_ephemeral));
+			co_return false;
+		}
+		co_return co_await triggerMassBan(bot, users_to_ban, event);
 	});
 
 	auto cancel_confirm = dpp::component()
