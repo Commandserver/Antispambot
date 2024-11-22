@@ -10,6 +10,8 @@
 #include <algorithm>
 #include <set>
 
+#define MAX_DISCORD_FILE_SIZE 8000000
+
 #include "classes/ButtonHandler.hpp"
 
 #include "utils.hpp"
@@ -93,37 +95,31 @@ int main() {
 		if (dpp::run_once<struct register_bot_commands>()) {
 			std::vector<dpp::slashcommand> commands = {
 					definition_info(),
-					definition_manage(),
+					definition_config(),
 					definition_massban(),
 					definition_masskick(),
 			};
 
-			bot.guild_bulk_command_create(commands, config["guild-id"].get<std::uint64_t>(), [&bot](const dpp::confirmation_callback_t &event) {
-				if (event.is_error()) {
-					bot.log(dpp::ll_error, "error creating slash commands: " + event.http_info.body);
-				} else {
-					bot.log(dpp::ll_info, "success creating slash commands");
-				}
-			});
+			bot.guild_bulk_command_create(commands, config["guild-id"].get<std::uint64_t>());
 		}
 	});
 
 
-	bot.on_slashcommand([&domainBlacklist, &forbiddenWords, &bypassConfig, &bot](const dpp::slashcommand_t &event) {
-		if (event.command.get_command_name() == "manage") {
-			handle_manage(bot, event, domainBlacklist, forbiddenWords, bypassConfig);
+	bot.on_slashcommand([&domainBlacklist, &forbiddenWords, &bypassConfig, &bot](const dpp::slashcommand_t &event) -> dpp::task<void> {
+		if (event.command.get_command_name() == "config") {
+			handle_config(event, domainBlacklist, forbiddenWords, bypassConfig);
 		} else if (event.command.get_command_name() == "info") {
 			handle_info(bot, event);
 		} else if (event.command.get_command_name() == "massban") {
-			handle_massban(bot, event);
+			co_await handle_massban(bot, event);
 		} else if (event.command.get_command_name() == "masskick") {
-			handle_masskick(bot, event);
+			co_await handle_masskick(bot, event);
 		}
 	});
 
 
-	bot.on_button_click([](const dpp::button_click_t &event) {
-		ButtonHandler::handle(event);
+	bot.on_button_click([](const dpp::button_click_t &event) -> dpp::task<void> {
+		co_await ButtonHandler::handle(event);
 	});
 
 
@@ -133,11 +129,7 @@ int main() {
 		bot.on_thread_create([&bot, &thread_rate_limit](const dpp::thread_create_t &event) {
 			auto t = event.created;
 			t.rate_limit_per_user = thread_rate_limit;
-			bot.channel_edit(t, [&bot](const dpp::confirmation_callback_t &e) {
-				if (e.is_error()) {
-					bot.log(dpp::ll_error, "couldn't edit thread: " + e.http_info.body);
-				}
-			});
+			bot.channel_edit(t);
 		});
 	}
 
@@ -236,11 +228,7 @@ int main() {
 			msg.channel_id = config["log-channel-id"].get<std::uint64_t>();
 			msg.add_embed(embed);
 			msg.add_file("users.txt", file);
-			bot.message_create(msg, [&log](const dpp::confirmation_callback_t &c) {
-				if (c.is_error()) {
-					log->error("error while sending the log message: " + c.http_info.body);
-				}
-			});
+			bot.message_create(msg);
 
 			{
 				std::unique_lock l(fast_joined_members.get_mutex());
@@ -310,7 +298,7 @@ int main() {
 	dpp::cache<dpp::message> message_cache;
 
 
-	bot.on_message_create([&bot, &log, &message_cache, &domainBlacklist, &forbiddenWords, &config, &bypassConfig](const dpp::message_create_t &event) {
+	bot.on_message_create([&bot, &log, &message_cache, &domainBlacklist, &forbiddenWords, &config, &bypassConfig](const dpp::message_create_t &event) -> dpp::task<void> {
 		/*
 		 * Do nothing when:
 		 * - from a bot
@@ -322,13 +310,13 @@ int main() {
 		if (event.msg.is_crosspost() or event.msg.is_crossposted() or event.msg.author.is_system() or
 			event.msg.author.is_bot() or event.msg.author.id == bot.me.id or
 			(event.msg.type != dpp::mt_default and event.msg.type != dpp::mt_reply and event.msg.type != dpp::mt_thread_starter_message)) {
-			return;
+			co_return;
 		}
 
 		// do nothing when whitelisted channel
 		for (auto &id : config["excluded_channel_ids"]) {
 			if (event.msg.channel_id == id.get<std::uint64_t>()) {
-				return;
+				co_return;
 			}
 		}
 		// do nothing when whitelisted category
@@ -336,7 +324,7 @@ int main() {
 		if (channel and channel->parent_id) {
 			for (auto &id: config["excluded_category_ids"]) {
 				if (channel->parent_id == id.get<std::uint64_t>()) {
-					return;
+					co_return;
 				}
 			}
 		}
@@ -346,11 +334,11 @@ int main() {
 			std::shared_lock l(bypassConfig.get_mutex());
 			for (const std::string &entry: bypassConfig.get_container()) {
 				if (event.msg.author.id == static_cast<dpp::snowflake>(entry)) {
-					return;
+					co_return;
 				}
-				for (dpp::snowflake roleId: event.msg.member.roles) {
+				for (dpp::snowflake roleId: event.msg.member.get_roles()) {
 					if (roleId == static_cast<dpp::snowflake>(entry)) {
-						return;
+						co_return;
 					}
 				}
 			}
@@ -416,12 +404,12 @@ int main() {
 								log->debug("blacklisted top-level-domain: " + domain);
 								mitigateSpam(bot, message_cache, config, event.msg,
 											 fmt::format("Blacklisted top-level-domain: `{}`", domain), DAY * 27, true);
-								return;
+								co_return;
 							} else if (s == domain) {
 								log->debug("blacklisted domain: " + domain);
 								mitigateSpam(bot, message_cache, config, event.msg,
 											 fmt::format("Blacklisted domain: `{}`", domain), DAY * 27, true);
-								return;
+								co_return;
 							}
 						}
 					}
@@ -433,7 +421,7 @@ int main() {
 						log->debug("forbidden extension: " + ext);
 						mitigateSpam(bot, message_cache, config, event.msg,
 									 fmt::format("Forbidden file extension in URL: `{}`", ext), DAY * 27, true);
-						return;
+						co_return;
 					}
 				}
 			}
@@ -455,7 +443,7 @@ int main() {
 						log->debug("bad word: " + forbiddenWord);
 						mitigateSpam(bot, message_cache, config, event.msg,
 									 fmt::format("Use of a bad word: `{}`", forbiddenWord), 660, false);
-						return;
+						co_return;
 					}
 				}
 			}
@@ -466,7 +454,7 @@ int main() {
 			log->debug("too many urls");
 			mitigateSpam(bot, message_cache, config, event.msg,
 						 "Too many URLs", DAY * 27, true);
-			return;
+			co_return;
 		}
 
 		// too many mentions
@@ -474,7 +462,7 @@ int main() {
 			log->debug("too many mentions in one message");
 			mitigateSpam(bot, message_cache, config, event.msg,
 						 "Mass ping", DAY * 14, false);
-			return;
+			co_return;
 		}
 
 		// check if @everyone and a link
@@ -483,7 +471,7 @@ int main() {
 			log->debug("url with @everyone-mention");
 			mitigateSpam(bot, message_cache, config, event.msg,
 						 "Message contains URL and @everyone", DAY * (inviteCount >= 1 ? 27 : 14), true);
-			return;
+			co_return;
 		}
 
 		// check for blacklisted file extensions
@@ -493,7 +481,7 @@ int main() {
 					log->debug("forbidden file extension: " + ext);
 					mitigateSpam(bot, message_cache, config, event.msg,
 								 fmt::format("Forbidden file extension: `{}`", ext), DAY * 27, true);
-					return;
+					co_return;
 				}
 			}
 		}
@@ -615,28 +603,28 @@ int main() {
 			mitigateSpam(bot, message_cache, config, event.msg,
 						 fmt::format("Crossposted message in {} Channels:||{}||",
 									 same_messages_in_different_channels.size(), channelMentions), DAY * (urlCount >= 1 ? 27 : 14), true); // maximum mute duration if contains url
-			return;
+			co_return;
 		}
 
 		// too many repeated messages in the same channel
 		if (same_messages_in_same_channel.size() >= 4) {
 			mitigateSpam(bot, message_cache, config, event.msg,
 						 "Repeated message 4 times", DAY * (urlCount >= 1 ? 27 : 8), true); // maximum mute duration if contains url
-			return;
+			co_return;
 		}
 
 		// same attachment or sticker sent somewhere
 		if (same_attachment.size() >= 4) {
 			mitigateSpam(bot, message_cache, config, event.msg,
 						 "Repeated attachment 4 times", DAY * 7, true);
-			return;
+			co_return;
 		}
 
 		if (mention_count > 20) {
 			log->debug("too many mentions in multiple messages");
 			mitigateSpam(bot, message_cache, config, event.msg,
 						 "Too many mentions through multiple messages", DAY * 27, true);
-			return;
+			co_return;
 		}
 
 		// count total messages in all channels
@@ -648,7 +636,7 @@ int main() {
 			mitigateSpam(bot, message_cache, config, event.msg,
 						 fmt::format("Sent messages in a shorter time in {} Channels:||{}||",
 									 different_channel_ids.size(), channelMentions), DAY * (urlCount >= 1 ? 27 : 1), true); // maximum mute duration if contains url
-			return;
+			co_return;
 		}
 
 		// too many discord-invitations in one message
@@ -656,66 +644,65 @@ int main() {
 			log->debug("too many invites");
 			mitigateSpam(bot, message_cache, config, event.msg,
 						 "Too many invitations", DAY * 27, true);
-			return;
+			co_return;
 		} else {
 			// check for invitation to another server
 			for (const std::string &inviteCode: inviteCodes) {
 				log->debug("invite code: " + inviteCode);
-				bot.invite_get(inviteCode, [guild_id = event.msg.guild_id, &config, &bot, msg = event.msg, &message_cache](const dpp::confirmation_callback_t &e) {
-					if (!e.is_error()) {
-						auto invite = std::get<dpp::invite>(e.value);
-						if (invite.guild_id == guild_id) {
-							return; // do nothing when its from the same guild
-						}
-						bot.log(dpp::ll_debug, "invite detected: " + invite.code);
-					} else {
-						// unknown or invalid invite
-						bot.log(dpp::ll_debug, "unknown invite detected");
+				auto confirmation = co_await bot.co_invite_get(inviteCode);
+				if (!confirmation.is_error()) {
+					auto invite = confirmation.get<dpp::invite>();
+					if (invite.guild_id == event.msg.guild_id) {
+						continue; // do nothing when its from the same guild
 					}
+					bot.log(dpp::ll_debug, "invite detected: " + invite.code);
+				} else {
+					// unknown or invalid invite
+					bot.log(dpp::ll_debug, "unknown invite detected");
+				}
 
-					std::vector<dpp::embed_field> embedFields;
+				std::vector<dpp::embed_field> embedFields;
 
-					if (!e.is_error()) {
-						// invite details
-						auto invite = std::get<dpp::invite>(e.value);
-						dpp::embed_field inviteField;
-						inviteField.is_inline = false;
-						inviteField.name = "Invitation details";
-						std::string s = "\nCode: _" + invite.code + "_";
-						if (invite.inviter_id) {
-							s = "Created by: <@" + std::to_string(invite.inviter_id) + ">";
-						}
-						if (invite.expires_at) {
-							s += "\nExpires: " + dpp::utility::timestamp(invite.expires_at, dpp::utility::tf_short_datetime);
-						}
-						s += "\nGuild ID: " + std::to_string(invite.guild_id);
-						inviteField.value = s;
-						embedFields.push_back(inviteField);
-
-						// get the guild object from the raw json
-						json j;
-						try {
-							j = json::parse(e.http_info.body);
-						} catch (json::exception&) {}
-						if (j.contains("guild")) {
-							dpp::embed_field guildField;
-							guildField.is_inline = false;
-							guildField.name = "Guild info";
-							auto guild = dpp::guild().fill_from_json(&j["guild"]);
-							std::string gInfo = "Name: " + guild.name;
-							if (!guild.description.empty()) {
-								gInfo += "\nDescription: " + guild.description;
-							}
-							gInfo += "\nMembers: :green_circle: " + std::to_string(invite.approximate_presence_count) +
-									 " Online • " + std::to_string(invite.approximate_member_count) + " Total members";
-							guildField.value = gInfo;
-							embedFields.push_back(guildField);
-						}
+				if (!confirmation.is_error()) {
+					// invite details
+					auto invite = std::get<dpp::invite>(confirmation.value);
+					dpp::embed_field inviteField;
+					inviteField.is_inline = false;
+					inviteField.name = "Invitation details";
+					std::string s = "\nCode: _" + invite.code + "_";
+					if (invite.inviter_id) {
+						s = "Created by: <@" + std::to_string(invite.inviter_id) + ">";
 					}
+					if (invite.expires_at) {
+						s += "\nExpires: " + dpp::utility::timestamp(invite.expires_at, dpp::utility::tf_short_datetime);
+					}
+					s += "\nGuild ID: " + std::to_string(invite.guild_id);
+					inviteField.value = s;
+					embedFields.push_back(inviteField);
 
-					mitigateSpam(bot, message_cache, config, msg,
-								 "Invitation posted", DAY * 27, true, embedFields);
-				});
+					// get the guild object from the raw json
+					nlohmann::json j;
+					try {
+						j = nlohmann::json::parse(confirmation.http_info.body);
+					} catch (nlohmann::json::exception&) {}
+					if (j.contains("guild")) {
+						dpp::embed_field guildField;
+						guildField.is_inline = false;
+						guildField.name = "Guild info";
+						auto guild = dpp::guild().fill_from_json(&j["guild"]);
+						std::string gInfo = "Name: " + guild.name;
+						if (!guild.description.empty()) {
+							gInfo += "\nDescription: " + guild.description;
+						}
+						gInfo += "\nMembers: :green_circle: " + std::to_string(invite.approximate_presence_count) +
+								 " Online • " + std::to_string(invite.approximate_member_count) + " Total members";
+						guildField.value = gInfo;
+						embedFields.push_back(guildField);
+					}
+				}
+
+				mitigateSpam(bot, message_cache, config, event.msg,
+							 "Invitation posted", DAY * 27, true, embedFields);
 			}
 		}
 	});

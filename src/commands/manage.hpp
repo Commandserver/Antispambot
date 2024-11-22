@@ -1,8 +1,8 @@
 #include <dpp/dpp.h>
 
-dpp::slashcommand definition_manage() {
+dpp::slashcommand definition_config() {
 	return dpp::slashcommand()
-			.set_name("manage")
+			.set_name("config")
 			.set_description("Bot Settings")
 			.set_default_permissions(0)
 
@@ -42,7 +42,7 @@ dpp::slashcommand definition_manage() {
 			);
 }
 
-void handle_manage(dpp::cluster& bot, const dpp::slashcommand_t& event, ConfigSet& domainBlacklist, ConfigSet& forbiddenWords, ConfigSet& bypassConfig) {
+void handle_config(const dpp::slashcommand_t& event, ConfigSet& domainBlacklist, ConfigSet& forbiddenWords, ConfigSet& bypassConfig) {
 	dpp::command_interaction cmd_data = std::get<dpp::command_interaction>(event.command.data);
 
 	if (cmd_data.options[0].name == "domainblacklist" and !cmd_data.options[0].options[0].options.empty()) {

@@ -2,6 +2,7 @@
  *
  * D++, A Lightweight C++ library for Discord
  *
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright 2021 Craig Edwards and D++ contributors 
  * (https://github.com/brainboxdotcc/DPP/graphs/contributors)
  *
@@ -26,12 +27,10 @@
 #include <climits>
 #include <dpp/httpsclient.h>
 #include <dpp/utility.h>
-#include <dpp/exception.h>
-#include <dpp/stringops.h>
 
 namespace dpp {
 
-https_client::https_client(const std::string &hostname, uint16_t port,  const std::string &urlpath, const std::string &verb, const std::string &req_body, const http_headers& extra_headers, bool plaintext_connection, uint16_t request_timeout)
+https_client::https_client(const std::string &hostname, uint16_t port,  const std::string &urlpath, const std::string &verb, const std::string &req_body, const http_headers& extra_headers, bool plaintext_connection, uint16_t request_timeout, const std::string &protocol)
 	: ssl_client(hostname, std::to_string(port), plaintext_connection, false),
 	state(HTTPS_HEADERS),
 	request_type(verb),
@@ -40,7 +39,9 @@ https_client::https_client(const std::string &hostname, uint16_t port,  const st
 	content_length(0),
 	request_headers(extra_headers),
 	status(0),
-	timeout(request_timeout)
+	http_protocol(protocol),
+	timeout(request_timeout),
+	timed_out(false)
 {
 	nonblocking = false;
 	timeout = time(nullptr) + request_timeout;
@@ -55,8 +56,8 @@ void https_client::connect()
 		map_headers += k + ": " + v + "\r\n";
 	}
 	if (this->sfd != SOCKET_ERROR) {
-		this->write(
-			this->request_type + " " + this->path + " HTTP/1.1\r\n"
+		this->socket_write(
+			this->request_type + " " + this->path + " HTTP/" + http_protocol + "\r\n"
 			"Host: " + this->hostname + "\r\n"
 			"pragma: no-cache\r\n"
 			"Connection: keep-alive\r\n"
@@ -71,7 +72,7 @@ void https_client::connect()
 	}
 }
 
-multipart_content https_client::build_multipart(const std::string &json, const std::vector<std::string>& filenames, const std::vector<std::string>& contents) {
+multipart_content https_client::build_multipart(const std::string &json, const std::vector<std::string>& filenames, const std::vector<std::string>& contents, const std::vector<std::string>& mimetypes) {
 	if (filenames.empty() && contents.empty()) {
 		if (!json.empty()) {
 			return { json, "application/json" };
@@ -84,7 +85,9 @@ multipart_content https_client::build_multipart(const std::string &json, const s
 		time_t dummy2 = time(nullptr) * time(nullptr);
 		const std::string two_cr("\r\n\r\n");
 		const std::string boundary("-------------" + to_hex(dummy1) + to_hex(dummy2));
-		const std::string mime_part_start("--" + boundary + "\r\nContent-Type: application/octet-stream\r\nContent-Disposition: form-data; ");
+		const std::string part_start("--" + boundary + "\r\nContent-Disposition: form-data; ");
+		const std::string mime_type_start("\r\nContent-Type: ");
+		const std::string default_mime_type("application/octet-stream");
 		
 		std::string content("--" + boundary);
 
@@ -92,12 +95,14 @@ multipart_content https_client::build_multipart(const std::string &json, const s
 		content += "\r\nContent-Type: application/json\r\nContent-Disposition: form-data; name=\"payload_json\"" + two_cr;
 		content += json + "\r\n";
 		if (filenames.size() == 1 && contents.size() == 1) {
-			content += mime_part_start + "name=\"file\"; filename=\"" + filenames[0] + "\"" + two_cr;
+			content += part_start + "name=\"file\"; filename=\"" + filenames[0] + "\"";
+			content += mime_type_start + (mimetypes.empty() || mimetypes[0].empty() ? default_mime_type : mimetypes[0]) + two_cr;
 			content += contents[0];
 		} else {
 			/* Multiple files */
 			for (size_t i = 0; i < filenames.size(); ++i) {
-				content += mime_part_start + "name=\"files[" + std::to_string(i) + "]\"; filename=\"" + filenames[i] + "\"" + two_cr;
+				content += part_start + "name=\"files[" + std::to_string(i) + "]\"; filename=\"" + filenames[i] + "\"";
+				content += "\r\nContent-Type: " + (mimetypes.size() <= i || mimetypes[i].empty() ? default_mime_type : mimetypes[i]) + two_cr;
 				content += contents[i];
 				content += "\r\n";
 			}
@@ -118,11 +123,30 @@ const std::string https_client::get_header(std::string header_name) const {
 	return std::string();
 }
 
-const std::map<std::string, std::string> https_client::get_headers() const {
-	return response_headers;
+size_t https_client::get_header_count(std::string header_name) const {
+	std::transform(header_name.begin(), header_name.end(), header_name.begin(), [](unsigned char c){
+		return std::tolower(c);
+	});
+	return response_headers.count(header_name);
 }
 
-https_client::~https_client() {
+const std::list<std::string> https_client::get_header_list(std::string header_name) const {
+	std::transform(header_name.begin(), header_name.end(), header_name.begin(), [](unsigned char c){
+		return std::tolower(c);
+	});
+	auto hdrs = response_headers.equal_range(header_name);
+	if (hdrs.first != response_headers.end()) {
+		std::list<std::string> data;
+		for ( auto i = hdrs.first; i != hdrs.second; ++i ) {
+			data.emplace_back(i->second);
+		}
+		return data;
+	}
+	return std::list<std::string>();
+}
+
+const std::multimap<std::string, std::string> https_client::get_headers() const {
+	return response_headers;
 }
 
 bool https_client::handle_buffer(std::string &buffer)
@@ -150,7 +174,7 @@ bool https_client::handle_buffer(std::string &buffer)
 						h.erase(h.begin());
 						/* HTTP/1.1 200 OK */
 						std::vector<std::string> req_status = utility::tokenize(status_line, " ");
-						if (req_status.size() >= 3 && (req_status[0] == "HTTP/1.1" || req_status[0] == "HTTP/1.0") && atoi(req_status[1].c_str())) {
+						if (req_status.size() >= 2 && (req_status[0] == "HTTP/1.1" || req_status[0] == "HTTP/1.0") && atoi(req_status[1].c_str())) {
 							for(auto &hd : h) {
 								std::string::size_type sep = hd.find(": ");
 								if (sep != std::string::npos) {
@@ -159,20 +183,23 @@ bool https_client::handle_buffer(std::string &buffer)
 									std::transform(key.begin(), key.end(), key.begin(), [](unsigned char c){
 										return std::tolower(c);
 									});
-									response_headers[key] = value;
+									response_headers.emplace(key, value);
 								}
 							}
-							if (response_headers.find("content-length") != response_headers.end()) {
-								content_length = std::stoull(response_headers["content-length"]);
+							auto it_cl = response_headers.find("content-length");
+							if ( it_cl != response_headers.end()) {
+								content_length = std::stoull(it_cl->second);
 							} else {
 								content_length = ULLONG_MAX;
 							}
-							if (response_headers["connection"] == "close") {
+							auto it_conn = response_headers.find("connection");
+							if (it_conn != response_headers.end() && it_conn->second == "close") {
 								keepalive = false;
 							}
 							chunked = false;
-							if (response_headers.find("transfer-encoding") != response_headers.end()) {
-								if (response_headers["transfer-encoding"].find("chunked") != std::string::npos) {
+							auto it_txenc = response_headers.find("transfer-encoding");
+							if (it_txenc != response_headers.end()) {
+								if (it_txenc->second.find("chunked") != std::string::npos) {
 									chunked = true;
 									chunk_size = 0;
 									chunk_receive = 0;
@@ -255,7 +282,7 @@ bool https_client::handle_buffer(std::string &buffer)
 			case HTTPS_CONTENT:
 				body += buffer;
 				buffer.clear();
-				if (body.length() >= content_length) {
+				if (content_length == ULLONG_MAX || body.length() >= content_length) {
 					state = HTTPS_DONE;
 					this->close();
 					return false;
@@ -285,6 +312,10 @@ http_state https_client::get_state() {
 
 void https_client::one_second_timer() {
 	if ((this->sfd == SOCKET_ERROR || time(nullptr) >= timeout) && this->state != HTTPS_DONE) {
+		/* if and only if response is timed out */
+		if (this->sfd != SOCKET_ERROR) {
+			timed_out = true;
+		}
 		keepalive = false;
 		this->close();
 	}
@@ -325,4 +356,4 @@ http_connect_info https_client::get_host_info(std::string url) {
 	return hci;
 }
 
-};
+}

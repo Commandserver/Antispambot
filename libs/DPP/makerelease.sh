@@ -12,15 +12,15 @@ mkdir assets
 # rpm
 mv "./libdpp - RPM Package amd64/libdpp-$NEWVER-Linux.rpm" "./assets/libdpp-$NEWVER-linux-x64.rpm"
 mv "./libdpp - RPM Package Linux x86/libdpp-$NEWVER-Linux.rpm" "./assets/libdpp-$NEWVER-linux-i386.rpm"
-mv "./libdpp - RPM Package ARM64/libdpp-$NEWVER-Linux.rpm" "./assets/libdpp-$NEWVER-linux-rpi-arm64.rpm"
-mv "./libdpp - RPM Package ARMv7 HF/libdpp-$NEWVER-Linux.rpm" "./assets/libdpp-$NEWVER-linux-rpi-arm7hf.rpm"
+mv "./libdpp - RPM Package arm64/libdpp-$NEWVER-Linux.rpm" "./assets/libdpp-$NEWVER-linux-rpi-arm64.rpm"
+mv "./libdpp - RPM Package arm7hf/libdpp-$NEWVER-Linux.rpm" "./assets/libdpp-$NEWVER-linux-rpi-arm7hf.rpm"
 mv "./libdpp - RPM Package ARMv6/libdpp-$NEWVER-Linux.rpm" "./assets/libdpp-$NEWVER-linux-rpi-arm6.rpm"
 
 # deb
 mv "./libdpp - Debian Package amd64/libdpp-$NEWVER-Linux.deb" "./assets/libdpp-$NEWVER-linux-x64.deb"
 mv "./libdpp - Debian Package Linux x86/libdpp-$NEWVER-Linux.deb" "./assets/libdpp-$NEWVER-linux-i386.deb"
-mv "./libdpp - Debian Package ARM64/libdpp-$NEWVER-Linux.deb" "./assets/libdpp-$NEWVER-linux-rpi-arm64.deb"
-mv "./libdpp - Debian Package ARMv7 HF/libdpp-$NEWVER-Linux.deb" "./assets/libdpp-$NEWVER-linux-rpi-arm7hf.deb"
+mv "./libdpp - Debian Package arm64/libdpp-$NEWVER-Linux.deb" "./assets/libdpp-$NEWVER-linux-rpi-arm64.deb"
+mv "./libdpp - Debian Package arm7hf/libdpp-$NEWVER-Linux.deb" "./assets/libdpp-$NEWVER-linux-rpi-arm7hf.deb"
 mv "./libdpp - Debian Package ARMv6/libdpp-$NEWVER-Linux.deb" "./assets/libdpp-$NEWVER-linux-rpi-arm6.deb"
 
 # win vs2019
@@ -88,9 +88,11 @@ rm -rf "libdpp-$NEWVER-win32"
 
 cd ..
 echo "Create release..."
-gh release create "v$NEWVER" --draft --title "v$NEWVER release" --notes "$(/usr/bin/php ../buildtools/changelog.php)" ./assets/*.zip ./assets/*.deb ./assets/*.rpm
+gh release create "v$NEWVER" --draft --title "v$NEWVER release" --notes "$(/usr/bin/php -d error_reporting=off ../buildtools/changelog.php)" ./assets/*.zip ./assets/*.deb ./assets/*.rpm
 gh release create -R brainboxdotcc/windows-bot-template "v$NEWVER" --draft --title "v$NEWVER release" --notes "This release packages DPP v$NEWVER into the windows bot template"
 echo "Cleaning up..."
 cd ..
 rm -rf temp
+
+./sign.sh v$NEWVER
 

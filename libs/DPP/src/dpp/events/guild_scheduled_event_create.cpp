@@ -2,6 +2,7 @@
  *
  * D++, A Lightweight C++ library for Discord
  *
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright 2021 Craig Edwards and D++ contributors 
  * (https://github.com/brainboxdotcc/DPP/graphs/contributors)
  *
@@ -22,13 +23,10 @@
 #include <dpp/cluster.h>
 #include <dpp/scheduled_event.h>
 #include <dpp/stringops.h>
-#include <dpp/nlohmann/json.hpp>
+#include <dpp/json.h>
 
-using json = nlohmann::json;
+namespace dpp::events {
 
-namespace dpp { namespace events {
-
-using namespace dpp;
 
 
 /**
@@ -47,4 +45,4 @@ void guild_scheduled_event_create::handle(discord_client* client, json &j, const
 	}
 }
 
-}};
+};

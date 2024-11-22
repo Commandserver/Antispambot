@@ -2,6 +2,7 @@
  *
  * D++, A Lightweight C++ library for Discord
  *
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright 2021 Craig Edwards and D++ contributors 
  * (https://github.com/brainboxdotcc/DPP/graphs/contributors)
  *
@@ -20,7 +21,7 @@
  ************************************************************************************/
 #include <dpp/automod.h>
 #include <dpp/discordevents.h>
-#include <dpp/nlohmann/json.hpp>
+#include <dpp/json.h>
 
 namespace dpp {
 
@@ -32,9 +33,12 @@ automod_action::automod_action() : channel_id(0), duration_seconds(0)
 
 automod_action::~automod_action() = default;
 
-automod_action& automod_action::fill_from_json(nlohmann::json* j) {
+automod_action& automod_action::fill_from_json_impl(nlohmann::json* j) {
 	type = (automod_action_type)int8_not_null(j, "type");
 	switch (type) {
+		case amod_action_block_message:
+			custom_message = string_not_null(&((*j)["metadata"]), "custom_message");
+			break;
 		case amod_action_send_alert:
 			channel_id = snowflake_not_null(&((*j)["metadata"]), "channel_id");
 			break;
@@ -47,11 +51,17 @@ automod_action& automod_action::fill_from_json(nlohmann::json* j) {
 	return *this;
 }
 
-std::string automod_action::build_json(bool with_id) const {
+json automod_action::to_json_impl(bool with_id) const {
 	json j({
 		{ "type", type }
 	});
 	switch (type) {
+		case amod_action_block_message:
+			if (!custom_message.empty()) {
+				j["metadata"] = json::object();
+				j["metadata"]["custom_message"] = custom_message;
+			}
+			break;
 		case amod_action_send_alert:
 			if (channel_id) {
 				j["metadata"] = json::object();
@@ -67,16 +77,19 @@ std::string automod_action::build_json(bool with_id) const {
 		default:
 			break;
 	};
-	return j.dump();
+	return j;
 }
 
 automod_metadata::automod_metadata() : mention_total_limit(0) {}
 
 automod_metadata::~automod_metadata() = default;
 
-automod_metadata& automod_metadata::fill_from_json(nlohmann::json* j) {
+automod_metadata& automod_metadata::fill_from_json_impl(nlohmann::json* j) {
 	for (auto k : (*j)["keyword_filter"]) {
 		keywords.push_back(k);
+	}
+	for (auto k : (*j)["regex_patterns"]) {
+		regex_patterns.push_back(k);
 	}
 	for (auto k : (*j)["presets"]) {
 		presets.push_back((automod_preset_type)k.get<uint32_t>());
@@ -85,25 +98,31 @@ automod_metadata& automod_metadata::fill_from_json(nlohmann::json* j) {
 		allow_list.push_back(k);
 	}
 	mention_total_limit = int8_not_null(j, "mention_total_limit");
+	mention_raid_protection_enabled = bool_not_null(j, "mention_raid_protection_enabled");
 	return *this;
 }
 
-std::string automod_metadata::build_json(bool with_id) const {
+json automod_metadata::to_json_impl(bool with_id) const {
 	json j;
 	j["keyword_filter"] = json::array();
+	j["regex_patterns"] = json::array();
 	j["presets"] = json::array();
 	j["allow_list"] = json::array();
-	for (auto v : keywords) {
+	for (auto &v : keywords) {
 		j["keyword_filter"].push_back(v);
+	}
+	for (auto &v : regex_patterns) {
+		j["regex_patterns"].push_back(v);
 	}
 	for (auto v : presets) {
 		j["presets"].push_back((uint32_t)v);
 	}
-	for (auto v : allow_list) {
+	for (auto &v : allow_list) {
 		j["allow_list"].push_back(v);
 	}
 	j["mention_total_limit"] = mention_total_limit;
-	return j.dump();
+	j["mention_raid_protection_enabled"] = mention_raid_protection_enabled;
+	return j;
 
 }
 
@@ -113,7 +132,7 @@ automod_rule::automod_rule() : managed(), guild_id(0), creator_id(0), event_type
 
 automod_rule::~automod_rule() = default;
 
-automod_rule& automod_rule::fill_from_json(nlohmann::json* j) {
+automod_rule& automod_rule::fill_from_json_impl(nlohmann::json* j) {
 	id = snowflake_not_null(j, "id");
 	guild_id = snowflake_not_null(j, "guild_id");
 	name = string_not_null(j, "name");
@@ -124,21 +143,13 @@ automod_rule& automod_rule::fill_from_json(nlohmann::json* j) {
 		trigger_metadata.fill_from_json(&((*j)["trigger_metadata"]));
 	}
 	enabled = bool_not_null(j, "enabled");
-	exempt_roles.clear();
-	exempt_channels.clear();
-	for (auto k : (*j)["automod_actions"]) {
-		actions.push_back(automod_action().fill_from_json(&k));
-	}
-	for (auto k : (*j)["exempt_roles"]) {
-		exempt_roles.push_back(stoull(k.get<std::string>()));
-	}
-	for (auto k : (*j)["exempt_channels"]) {
-		exempt_channels.push_back(stoull(k.get<std::string>()));
-	}
+	set_object_array_not_null<automod_action>(j, "actions", actions);
+	set_snowflake_array_not_null(j, "exempt_roles", exempt_roles);
+	set_snowflake_array_not_null(j, "exempt_channels", exempt_channels);
 	return *this;
 }
 
-std::string automod_rule::build_json(bool with_id) const {
+json automod_rule::to_json_impl(bool with_id) const {
 	json j;
 	if (with_id && id) {
 		j["id"] = std::to_string(id);
@@ -150,12 +161,12 @@ std::string automod_rule::build_json(bool with_id) const {
 	j["enabled"] = enabled;
 	j["event_type"] = event_type;
 	j["trigger_type"] = trigger_type;
-	j["trigger_metadata"] = json::parse(trigger_metadata.build_json());
+	j["trigger_metadata"] = trigger_metadata.to_json();
 	if (actions.size()) {
 		j["actions"] = json::array();
 		json& act = j["actions"];
 		for (auto v : actions) {
-			act.push_back(json::parse(v.build_json()));
+			act.push_back(v.to_json());
 		}
 	}
 	if (exempt_roles.size()) {
@@ -172,8 +183,8 @@ std::string automod_rule::build_json(bool with_id) const {
 			channels.push_back(std::to_string(v));
 		}
 	}
-	return j.dump();
+	return j;
 }
 
-};
+}
 

@@ -219,30 +219,29 @@ void mitigateSpam(dpp::cluster &bot, dpp::cache<dpp::message> &message_cache, nl
 			.set_type(dpp::cot_button)
 			.set_style(dpp::cos_danger);
 
-	ButtonHandler::bind(kick_component, [&bot, userIdToKick = msg.author.id](const dpp::button_click_t &event){
+	ButtonHandler::bind(kick_component, [&bot, userIdToKick = msg.author.id](const dpp::button_click_t &event) -> dpp::task<bool> {
 		// check bot permissions
 		if (!event.command.app_permissions.has(dpp::p_kick_members)) {
 			event.reply(dpp::message("The bot has no permission to kick members").set_flags(dpp::m_ephemeral));
-			return false;
+			co_return false;
 		}
 		// check member permissions
-		dpp::permission memberPermission;
-		try {
-			memberPermission = event.command.get_resolved_permission(event.command.usr.id);
-		} catch (dpp::logic_exception&) {
+		if (!event.command.get_resolved_permission(event.command.usr.id).has(dpp::p_kick_members)) {
 			event.reply(dpp::message("You need kick permissions to do that").set_flags(dpp::m_ephemeral));
-			return false;
+			co_return false;
 		}
-		if (memberPermission.has(dpp::p_kick_members)) {
-			// kick the member
-			bot.set_audit_reason("kicked by " + std::to_string(event.command.usr.id) + " after spam detection")
-					.guild_member_kick(event.command.guild_id, userIdToKick);
-			event.reply(dpp::message("<@" + std::to_string(userIdToKick) + "> kicked").set_flags(dpp::m_ephemeral));
-			return true;
-		} else {
-			event.reply(dpp::message("You need kick permissions to do that").set_flags(dpp::m_ephemeral));
-			return false;
+
+		// kick the member
+		auto confirmation = co_await bot.set_audit_reason("kicked by " + std::to_string(event.command.usr.id) + " after spam detection")
+				.co_guild_member_kick(event.command.guild_id, userIdToKick);
+		if (confirmation.is_error()) {
+			bot.log(dpp::ll_error, "Cannot kick member: " + confirmation.get_error().message);
+			event.reply("Error occurred");
+			co_return false;
 		}
+
+		event.reply(dpp::message("<@" + std::to_string(userIdToKick) + "> kicked").set_flags(dpp::m_ephemeral));
+		co_return true;
 	}, 2880);
 
 	dpp::component component;
@@ -256,4 +255,36 @@ void mitigateSpam(dpp::cluster &bot, dpp::cache<dpp::message> &message_cache, nl
 	} else {
 		deleteMsg(bot, msg);
 	}
+}
+
+inline std::set<dpp::snowflake> getUsersJoinedBetweenTime(dpp::guild& guild, time_t begin, time_t end) {
+	std::set<dpp::snowflake> users;
+	for (const auto& m : guild.members) {
+		if (m.second.joined_at >= begin && m.second.joined_at <= end) {
+			users.insert(m.second.user_id);
+		}
+	}
+	return users;
+}
+
+inline std::string makeMassActionUserCSV(dpp::guild& guild, std::set<dpp::snowflake>& usersIds) {
+	std::string file = "User ID,Account creation,Joined,Username\n";
+
+	// find the users to ban and create the preview file
+	for (const auto& pair : guild.members) {
+		for (auto userId : usersIds) {
+			if (pair.first == userId) {
+				// add member to the file which is then send with the reply
+				auto creation = static_cast<time_t>(pair.first.get_creation_time());
+				file += std::to_string(pair.first) + "," + formatTime(creation) + "," + formatTime(pair.second.joined_at);
+				auto user = dpp::find_user(pair.first);
+				if (user) {
+					file += "," + user->username;
+				}
+				file += "\n";
+			}
+		}
+	}
+	// truncate the file to ensure the file can be uploaded to discord
+	return dpp::utility::utf8substr(file, 0, MAX_DISCORD_FILE_SIZE);
 }

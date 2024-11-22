@@ -24,16 +24,17 @@
 namespace dpp {
 
 void cluster::guild_current_member_edit(snowflake guild_id, const std::string &nickname, command_completion_event_t callback) {
-	std::string o = (nickname.empty() ? json({{"nick", json::value_t::null }}) : json({{"nick", nickname }})).dump();
+	std::string o = (nickname.empty() ? json({{"nick", json::value_t::null }}) : json({{"nick", nickname }})).dump(-1, ' ', false, json::error_handler_t::replace);
 	rest_request<confirmation>(this, API_PATH "/guilds", std::to_string(guild_id), "members/@me", m_patch, o, callback);
 }
 
 
-void cluster::guild_auditlog_get(snowflake guild_id, snowflake user_id, uint32_t action_type, snowflake before, uint32_t limit, command_completion_event_t callback) {
+void cluster::guild_auditlog_get(snowflake guild_id, snowflake user_id, uint32_t action_type, snowflake before, snowflake after, uint32_t limit, command_completion_event_t callback) {
 	std::string parameters = utility::make_url_parameters({
 		{"user_id", user_id},
 		{"action_type", action_type},
 		{"before", before},
+		{"after", after},
 		{"limit", limit},
 	});
 	rest_request<auditlog>(this, API_PATH "/guilds", std::to_string(guild_id), "audit-logs" + parameters, m_get, "", callback);
@@ -45,12 +46,13 @@ void cluster::guild_ban_add(snowflake guild_id, snowflake user_id, uint32_t dele
 	if (delete_message_seconds) {
 		j["delete_message_seconds"] = delete_message_seconds > 604800 ? 604800 : delete_message_seconds;
 		if (delete_message_seconds >= 1 && delete_message_seconds <= 7) {
+			// this prints out a warning for backwards compatibility
 			if (dpp::run_once<struct ban_add_seconds_not_days_t>()) {
 				this->log(ll_warning, "It looks like you may have confused seconds and days in cluster::guild_ban_add - Please double check your parameters!");
 			}
 		}
 	}
-	rest_request<confirmation>(this, API_PATH "/guilds", std::to_string(guild_id), "bans/" + std::to_string(user_id), m_put, j.dump(), callback);
+	rest_request<confirmation>(this, API_PATH "/guilds", std::to_string(guild_id), "bans/" + std::to_string(user_id), m_put, j.dump(-1, ' ', false, json::error_handler_t::replace), callback);
 }
 
 
@@ -94,7 +96,7 @@ void cluster::guild_get_bans(snowflake guild_id, snowflake before, snowflake aft
 		{"after", after},
 		{"limit", limit},
 	});
-	rest_request_list<ban>(this, API_PATH "/guilds", std::to_string(guild_id), "bans" + parameters, m_get, "", callback, "user_id");
+	rest_request_list<ban>(this, API_PATH "/guilds", std::to_string(guild_id), "bans" + parameters, m_get, "", callback);
 }
 
 
@@ -138,7 +140,7 @@ void cluster::guild_begin_prune(snowflake guild_id, const struct prune& pruneinf
 
 
 void cluster::guild_set_nickname(snowflake guild_id, const std::string &nickname, command_completion_event_t callback) {
-	std::string o = (nickname.empty() ? json({{"nick", json::value_t::null }}) : json({{"nick", nickname }})).dump();
+	std::string o = (nickname.empty() ? json({{"nick", json::value_t::null }}) : json({{"nick", nickname }})).dump(-1, ' ', false, json::error_handler_t::replace);
 	rest_request<confirmation>(this, API_PATH "/guilds", std::to_string(guild_id), "members/@me/nick", m_patch, o, callback);
 }
 
@@ -148,4 +150,23 @@ void cluster::guild_sync_integration(snowflake guild_id, snowflake integration_i
 }
 
 
-};
+void cluster::guild_get_onboarding(snowflake guild_id, command_completion_event_t callback) {
+	rest_request<onboarding>(this, API_PATH "/guilds", std::to_string(guild_id), "onboarding", m_get, "", callback);
+}
+
+void cluster::guild_edit_onboarding(const struct onboarding& o, command_completion_event_t callback) {
+	rest_request<onboarding>(this, API_PATH "/guilds", std::to_string(o.guild_id), "onboarding", m_put, o.build_json(), callback);
+}
+
+void cluster::guild_get_welcome_screen(snowflake guild_id, command_completion_event_t callback) {
+	rest_request<dpp::welcome_screen>(this, API_PATH "/guilds", std::to_string(guild_id), "welcome-screen", m_get, "", callback);
+}
+
+void cluster::guild_edit_welcome_screen(snowflake guild_id, const struct welcome_screen& welcome_screen, bool enabled, command_completion_event_t callback) {
+	json j = welcome_screen.to_json();
+	j["enabled"] = enabled;
+	rest_request<dpp::welcome_screen>(this, API_PATH "/guilds", std::to_string(guild_id), "welcome-screen", m_patch, j.dump(-1, ' ', false, json::error_handler_t::replace), callback);
+}
+
+
+}
