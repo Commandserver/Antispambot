@@ -20,8 +20,10 @@
  ************************************************************************************/
 #include <dpp/user.h>
 #include <dpp/discordevents.h>
-#include <dpp/nlohmann/json.hpp>
+#include <dpp/json.h>
 #include <dpp/stringops.h>
+
+namespace dpp {
 
 using json = nlohmann::json;
 
@@ -40,62 +42,106 @@ std::map<uint32_t, dpp::user_flags> usermap = {
 	{ 1 << 16,      dpp::u_verified_bot },
 	{ 1 << 17,      dpp::u_verified_bot_dev },
 	{ 1 << 18,      dpp::u_certified_moderator },
-	{ 1 << 19,      dpp::u_bot_http_interactions }
+	{ 1 << 19,      dpp::u_bot_http_interactions },
+	{ 1 << 22, 	dpp::u_active_developer},
 };
 
-namespace dpp {
-
-user::user() :
-	managed(),
-	flags(0),
-	discriminator(0),
-	refcount(1)
-{
+user::user() : managed(), flags(0), discriminator(0), refcount(1) {
 }
 
-user::~user()
-{
+std::string user::get_mention(const snowflake& id) {
+	return utility::user_mention(id);
 }
 
-std::string user::build_json(bool with_id) const {
-	return "";
+json user::to_json_impl(bool with_id) const {
+	json j;
+
+	j["id"] = id;
+	j["username"] = username;
+	j["global_name"] = global_name; 
+	j["avatar"] = avatar.to_string();
+	j["discriminator"] = discriminator;
+	j["bot"] = is_bot();
+	j["system"] = is_system();
+	j["mfa_enabled"] = is_mfa_enabled();
+	j["verified"] = is_verified();
+	j["premium_type"] = (has_nitro_classic() ? 1 : (has_nitro_full() ? 2 : has_nitro_basic() ? 3 : 0));
+	uint32_t out_flags = 0;
+	for (auto & flag : usermap) {
+		if (flags & flag.second) {
+			out_flags |= flag.first;
+		}
+	}
+	j["flags"] = out_flags;
+
+	return j;
 }
 
-std::string user_identified::build_json(bool with_id) const {
-	return "";
+json user_identified::to_json_impl(bool with_id) const {
+	return {};
 }
 
 user_identified::user_identified() : user(), accent_color(0), verified(false) {
 
 }
 
-user_identified::~user_identified() {
+user_identified::user_identified(const user& u): user(u), accent_color(0), verified(false) {
 }
 
-std::string user::get_avatar_url(uint16_t size)  const {
-	/* XXX: Discord were supposed to change their CDN over to discord.com, they haven't.
-	 * At some point in the future this URL *will* change!
-	 */
+std::string user::get_avatar_url(uint16_t size, const image_type format, bool prefer_animated) const {
 	if (this->avatar.to_string().empty()) {
-		return utility::cdn_host + "/embed/avatars/" + std::to_string(this->discriminator % 5) + ".png";
+		return get_default_avatar_url();
+	} else if (this->id) {
+		return utility::cdn_endpoint_url_hash({ i_jpg, i_png, i_webp, i_gif },
+			"avatars/" + std::to_string(this->id), this->avatar.to_string(),
+			format, size, prefer_animated, has_animated_icon());
 	} else {
-		return utility::cdn_host + "/avatars/" +
-			std::to_string(this->id) +
-			(has_animated_icon() ? "/a_" : "/") +
-			this->avatar.to_string() +
-			(has_animated_icon() ? ".gif" : ".png") +
-			utility::avatar_size(size);
+		return std::string();
+	}
+}
+
+std::string user::get_default_avatar_url() const {
+	if (this->discriminator) {
+		return utility::cdn_endpoint_url({ i_png },
+			"embed/avatars/" + std::to_string(this->discriminator % 5),
+			i_png, 0);
+	} else if (this->id){
+		return utility::cdn_endpoint_url({ i_png },
+			"embed/avatars/" + std::to_string((this->id >> 22) % 6),
+			i_png, 0);
+	} else {
+		return std::string();
+	}
+}
+
+std::string user::get_avatar_decoration_url(uint16_t size) const {
+	if (this->id) {
+		return utility::cdn_endpoint_url_hash({ i_png },
+			"avatar-decorations/" + std::to_string(this->id), this->avatar_decoration.to_string(),
+			i_png, size);
+	} else {
+		return std::string();
 	}
 }
 
 std::string user::format_username() const {
+	if (!global_name.empty()) {
+		return global_name;
+	}
 	return username + '#' + leading_zeroes(discriminator, 4);
 }
 
 std::string user::get_mention() const {
-	return "<@" + std::to_string(id) + ">";
+	return utility::user_mention(id);
 }
 
+std::string user::get_url() const{
+	return utility::user_url(id);
+}
+
+bool user::is_active_developer() const {
+	return this->flags & u_active_developer;
+}
 
 bool user::is_bot() const {
 	 return this->flags & u_bot;
@@ -185,27 +231,25 @@ bool user::has_animated_icon() const {
 	return this->flags & u_animated_icon;
 }
 
-user& user::fill_from_json(json* j) {
+user& user::fill_from_json_impl(json* j) {
 	j->get_to(*this);
 	return *this;
 }
 
-user_identified& user_identified::fill_from_json(json* j) {
+user_identified& user_identified::fill_from_json_impl(json* j) {
 	j->get_to(*this);
 	return *this;
 }
 
-std::string user_identified::get_banner_url(uint16_t size) const {
-	/* XXX: Discord were supposed to change their CDN over to discord.com, they haven't.
-	 * At some point in the future this URL *will* change!
-	 */
-	if (!this->banner.to_string().empty()) {
-		return utility::cdn_host + "/banners/" +
-			std::to_string(this->id) +
-			(has_animated_icon() ? "/a_" : "/") +
-			this->banner.to_string() +
-			(has_animated_icon() ? ".gif" : ".png") +
-			utility::avatar_size(size);
+bool user_identified::has_animated_banner() const {
+	return this->flags & u_animated_banner;
+}
+
+std::string user_identified::get_banner_url(uint16_t size, const image_type format, bool prefer_animated) const {
+	if (!this->banner.to_string().empty() && this->id) {
+		return utility::cdn_endpoint_url_hash({ i_jpg, i_png, i_webp, i_gif },
+			"banners/" + std::to_string(this->id), this->banner.to_string(),
+			format, size, prefer_animated, has_animated_banner());
 	} else {
 		return std::string();
 	}
@@ -220,6 +264,10 @@ void from_json(const nlohmann::json& j, user_identified& u) {
 	u.verified = bool_not_null(&j, "verified");
 	if (j.find("banner") != j.end()) {
 		std::string b = string_not_null(&j, "banner");
+		if (b.length() > 2 && b.substr(0, 2) == "a_") {
+			b = b.substr(2, b.length());
+			u.flags |= u_animated_banner;
+		}
 		u.banner = b;
 	}
 }
@@ -227,6 +275,7 @@ void from_json(const nlohmann::json& j, user_identified& u) {
 void from_json(const nlohmann::json& j, user& u) {
 	u.id = snowflake_not_null(&j, "id");
 	u.username = string_not_null(&j, "username");
+	u.global_name = string_not_null(&j, "global_name");
 
 	std::string av = string_not_null(&j, "avatar");
 	if (av.length() > 2 && av.substr(0, 2) == "a_") {
@@ -234,6 +283,8 @@ void from_json(const nlohmann::json& j, user& u) {
 		u.flags |= u_animated_icon;
 	}
 	u.avatar = av;
+
+	u.avatar_decoration = string_not_null(&j, "avatar_decoration");
 
 	u.discriminator = (uint16_t)snowflake_not_null(&j, "discriminator");
 
@@ -253,4 +304,4 @@ void from_json(const nlohmann::json& j, user& u) {
 	}
 }
 
-};
+}

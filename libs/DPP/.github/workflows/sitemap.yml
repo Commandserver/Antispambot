@@ -3,8 +3,13 @@ on:
   schedule:
     - cron: '0 6 * * 6'
 
+permissions:
+  contents: read
+
 jobs:
   updater:
+    permissions:
+      contents: write # Needs to be able to write to the repo.
     name: Generate Sitemap
     if: github.repository == 'brainboxdotcc/DPP'
     runs-on: ubuntu-20.04
@@ -13,6 +18,11 @@ jobs:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        with:
+          egress-policy: audit
+
       - name: Checkout github pages repository
         run: git config --global user.email "robot@dpp.dev" && git config --global user.name "D++ Sitemap Updater Bot" && git clone https://braindigitalis:$PERSONAL_ACCESS_TOKEN@github.com/brainboxdotcc/dpp-web.git /home/runner/dpp-web 
         env:

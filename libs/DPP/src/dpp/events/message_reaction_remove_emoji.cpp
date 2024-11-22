@@ -2,6 +2,7 @@
  *
  * D++, A Lightweight C++ library for Discord
  *
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright 2021 Craig Edwards and D++ contributors 
  * (https://github.com/brainboxdotcc/DPP/graphs/contributors)
  *
@@ -22,13 +23,11 @@
 #include <dpp/cluster.h>
 #include <dpp/message.h>
 #include <dpp/stringops.h>
-#include <dpp/nlohmann/json.hpp>
+#include <dpp/json.h>
 
-using json = nlohmann::json;
 
-namespace dpp { namespace events {
+namespace dpp::events {
 
-using namespace dpp;
 
 /**
  * @brief Handle event
@@ -42,14 +41,15 @@ void message_reaction_remove_emoji::handle(discord_client* client, json &j, cons
 		json &d = j["d"];
 		dpp::message_reaction_remove_emoji_t mrre(client, raw);
 		mrre.reacting_guild = dpp::find_guild(snowflake_not_null(&d, "guild_id"));
-		mrre.reacting_channel = dpp::find_channel(snowflake_not_null(&d, "channel_id"));
+		mrre.channel_id = snowflake_not_null(&d, "channel_id");
+		mrre.reacting_channel = dpp::find_channel(mrre.channel_id);
 		mrre.message_id = snowflake_not_null(&d, "message_id");
 		mrre.reacting_emoji = dpp::emoji().fill_from_json(&(d["emoji"]));
-		if (mrre.reacting_channel && mrre.message_id) {
+		if (mrre.channel_id && mrre.message_id) {
 			client->creator->on_message_reaction_remove_emoji.call(mrre);
 		}
 	}
 
 }
 
-}};
+};

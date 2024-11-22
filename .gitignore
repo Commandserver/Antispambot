@@ -1,0 +1,4 @@
+.idea
+cmake-build-debug
+config.json
+latest.log

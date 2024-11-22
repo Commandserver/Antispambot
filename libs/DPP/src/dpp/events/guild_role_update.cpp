@@ -2,6 +2,7 @@
  *
  * D++, A Lightweight C++ library for Discord
  *
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright 2021 Craig Edwards and D++ contributors 
  * (https://github.com/brainboxdotcc/DPP/graphs/contributors)
  *
@@ -23,14 +24,11 @@
 #include <dpp/guild.h>
 #include <dpp/role.h>
 #include <dpp/stringops.h>
-#include <dpp/nlohmann/json.hpp>
+#include <dpp/json.h>
 
-using json = nlohmann::json;
 
-namespace dpp { namespace events {
 
-using namespace dpp;
-
+namespace dpp::events {
 /**
  * @brief Handle event
  * 
@@ -40,31 +38,30 @@ using namespace dpp;
  */
 void guild_role_update::handle(discord_client* client, json &j, const std::string &raw) {
 	json &d = j["d"];
-	dpp::guild* g = dpp::find_guild(snowflake_not_null(&d, "guild_id"));
-	if (g) {
-		if (client->creator->cache_policy.role_policy == dpp::cp_none) {
-			dpp::role r;
-			r.fill_from_json(g->id, &d);
+	dpp::snowflake guild_id = snowflake_not_null(&d, "guild_id");
+	dpp::guild* g = dpp::find_guild(guild_id);
+	if (client->creator->cache_policy.role_policy == dpp::cp_none) {
+		dpp::role r;
+		r.fill_from_json(guild_id, &d);
+		if (!client->creator->on_guild_role_update.empty()) {
+			dpp::guild_role_update_t gru(client, raw);
+			gru.updating_guild = g;
+			gru.updated = &r;
+			client->creator->on_guild_role_update.call(gru);
+		}
+	} else {
+		json& role = d["role"];
+		dpp::role *r = dpp::find_role(snowflake_not_null(&role, "id"));
+		if (r) {
+			r->fill_from_json(g->id, &role);
 			if (!client->creator->on_guild_role_update.empty()) {
 				dpp::guild_role_update_t gru(client, raw);
 				gru.updating_guild = g;
-				gru.updated = &r;
+				gru.updated = r;
 				client->creator->on_guild_role_update.call(gru);
-			}
-		} else {
-			json& role = d["role"];
-			dpp::role *r = dpp::find_role(snowflake_not_null(&role, "id"));
-			if (r) {
-				r->fill_from_json(g->id, &role);
-				if (!client->creator->on_guild_role_update.empty()) {
-					dpp::guild_role_update_t gru(client, raw);
-					gru.updating_guild = g;
-					gru.updated = r;
-					client->creator->on_guild_role_update.call(gru);
-				}
 			}
 		}
 	}
 }
 
-}};
+};

@@ -1,7 +1,9 @@
 # minimum CMake version required
 cmake_minimum_required(VERSION 3.15)
 # Project name, version and description
-project(Antispambot VERSION 1.0 DESCRIPTION "A discord bot to prevent spam")
+project(Antispambot VERSION 1.1 DESCRIPTION "A discord bot to prevent spam")
+
+set(DPP_CORO ON)
 
 # Add DPP as dependency
 add_subdirectory(libs/DPP)
@@ -37,6 +39,6 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 
 # Set C++ version
 set_target_properties(${PROJECT_NAME} PROPERTIES
-        CXX_STANDARD 17 # or 20 if you want something more recent
+        CXX_STANDARD 20
         CXX_STANDARD_REQUIRED ON
         )

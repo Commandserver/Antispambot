@@ -4,7 +4,7 @@
 ![Lines of code](https://img.shields.io/tokei/lines/github/Commandserver/Antispambot) 
 ![GitHub](https://img.shields.io/github/license/Commandserver/Antispambot) 
 
-**An efficient Discord Bot to prevent spam** written in C++. Tested on a large discord server and mitigates around 90% of spam. Its well commented and therefor you can easily adapt it according to your needs.
+**An efficient Discord Bot to prevent spam** written in C++. Tested on a large discord server and mitigates around 90% of spam. Its well commented and therefor you can easily adapt it according to your needs. Currently, it's designed to only work with one Guild.
 
 ## Features
 
@@ -68,7 +68,7 @@ Visit the [D++ library documentation](https://dpp.dev/) for more details.
 
 ## Configuration and Running
 
-Edit the `config.json`. The configuration variables in the file should be self-explanatory.
+Rename the `config.json.dist` to `config.json` and configure it. The configuration variables in the file should be self-explanatory.
 
 All bad words are saved line by line in the `bad-words.txt`.
 

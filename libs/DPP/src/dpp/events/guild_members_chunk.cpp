@@ -2,6 +2,7 @@
  *
  * D++, A Lightweight C++ library for Discord
  *
+ * SPDX-License-Identifier: Apache-2.0
  * Copyright 2021 Craig Edwards and D++ contributors 
  * (https://github.com/brainboxdotcc/DPP/graphs/contributors)
  *
@@ -23,13 +24,11 @@
 #include <dpp/guild.h>
 #include <dpp/cache.h>
 #include <dpp/stringops.h>
-#include <dpp/nlohmann/json.hpp>
+#include <dpp/json.h>
 
-using json = nlohmann::json;
 
-namespace dpp { namespace events {
+namespace dpp::events {
 
-using namespace dpp;
 
 /**
  * @brief Handle event
@@ -63,13 +62,13 @@ void guild_members_chunk::handle(discord_client* client, json &j, const std::str
 				}
 			}
 		}
-		if (!client->creator->on_guild_members_chunk.empty()) {
-			dpp::guild_members_chunk_t gmc(client, raw);
-			gmc.adding = g;
-			gmc.members = &um;
-			client->creator->on_guild_members_chunk.call(gmc);
-		}
+	}
+	if (!client->creator->on_guild_members_chunk.empty()) {
+		dpp::guild_members_chunk_t gmc(client, raw);
+		gmc.adding = g;
+		gmc.members = &um;
+		client->creator->on_guild_members_chunk.call(gmc);
 	}
 }
 
-}};
+};

@@ -86,17 +86,17 @@ EOT;
     /**
      * @inheritDoc
      */
-    public function generateHeaderDef(string $returnType, string $currentFunction, string $parameters, string $noDefaults, string $parameterNames): string
+    public function generateHeaderDef(string $returnType, string $currentFunction, string $parameters, string $noDefaults, string $parameterTypes, string $parameterNames): string
     {
-        return "$returnType {$currentFunction}_sync($parameters);\n\n";
+        return "DPP_DEPRECATED(\"Please use coroutines instead of sync functions: https://dpp.dev/coro-introduction.html\") $returnType {$currentFunction}_sync($parameters);\n\n";
     }
 
     /**
      * @inheritDoc
      */
-    public function generateCppDef(string $returnType, string $currentFunction, string $parameters, string $noDefaults, string $parameterNames): string
+    public function generateCppDef(string $returnType, string $currentFunction, string $parameters, string $noDefaults, string $parameterTypes, string $parameterNames): string
     {
-        return "$returnType cluster::{$currentFunction}_sync($noDefaults) {\n\treturn dpp::sync<$returnType>(this, &cluster::$currentFunction$parameterNames);\n}\n\n";
+        return "$returnType cluster::{$currentFunction}_sync($noDefaults) {\n\treturn dpp::sync<$returnType>(this, static_cast<void (cluster::*)($parameterTypes". (!empty($parameterTypes) ? ", " : "") . "command_completion_event_t)>(&cluster::$currentFunction)$parameterNames);\n}\n\n";
     }
 
     /**
@@ -107,6 +107,7 @@ EOT;
         return [
             " * \memberof dpp::cluster",
             " * @throw dpp::rest_exception upon failure to execute REST function",
+            " * @deprecated This function is deprecated, please use coroutines instead.",
             " * @warning This function is a blocking (synchronous) call and should only be used from within a separate thread.",
             " * Avoid direct use of this function inside an event handler.",
         ];

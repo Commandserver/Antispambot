@@ -15,7 +15,7 @@ namespace ButtonHandler {
 	 */
 	struct Session {
 		time_t created_at;
-		std::function<bool(const dpp::button_click_t &)> function;
+		std::function<dpp::task<bool>(const dpp::button_click_t &)> function;
 		/// Duration in seconds to hold the session in the cache
 		uint16_t cache_duration;
 
@@ -63,7 +63,7 @@ namespace ButtonHandler {
      * The handler will then no longer respond to the button. Otherwise return false
      * @param cache_duration Duration in minutes to hold the component in the cache. Defaults to 10 minutes
      */
-	void bind(dpp::component &component, const std::function<bool(const dpp::button_click_t &)> &function, uint16_t cache_duration = 10) {
+	void bind(dpp::component &component, const std::function<dpp::task<bool>(const dpp::button_click_t &)> &function, uint16_t cache_duration = 10) {
 		clearGarbage();
 
 		std::unique_lock l(cachedSessionsMutex);
@@ -93,7 +93,7 @@ namespace ButtonHandler {
  	 * call this in dpp::cluster::on_button_click
      * @param event the dpp::button_click_t event
      */
-	void handle(const dpp::button_click_t &event) {
+	dpp::task<void> handle(const dpp::button_click_t &event) {
 		// parse id and creation time from the event's custom_id
 		uint64_t customId;
 		time_t creationTimestamp;
@@ -107,10 +107,10 @@ namespace ButtonHandler {
 			creationTimestamp = std::stol(creation);
 		} catch (std::out_of_range &e) {
 			event.reply(dpp::message("invalid component").set_flags(dpp::m_ephemeral));
-			return;
+			co_return;
 		} catch (std::invalid_argument &e) {
 			event.reply(dpp::message("invalid component").set_flags(dpp::m_ephemeral));
-			return;
+			co_return;
 		}
 
 		std::unique_lock l(cachedSessionsMutex);
@@ -118,7 +118,7 @@ namespace ButtonHandler {
 		auto existing = cachedSessions.find(customId);
 
 		if (existing != cachedSessions.end() && existing->second.created_at == creationTimestamp && !existing->second.isExpired()) {
-			bool forget = existing->second.function(event);
+			bool forget = co_await existing->second.function(event);
 			if (forget) {
 				cachedSessions.erase(existing);
 			}
