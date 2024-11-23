@@ -19,7 +19,7 @@ add_executable(${PROJECT_NAME}
         src/classes/ButtonHandler.hpp
         src/classes/CachedGuildMember.cpp
         src/commands/info.hpp
-        src/commands/manage.hpp
+        src/commands/config.hpp
         src/commands/massban.hpp
         src/commands/masskick.hpp
         )

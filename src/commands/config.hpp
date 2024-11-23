@@ -42,7 +42,7 @@ dpp::slashcommand definition_config() {
 			);
 }
 
-void handle_config(const dpp::slashcommand_t& event, ConfigSet& domainBlacklist, ConfigSet& forbiddenWords, ConfigSet& bypassConfig) {
+void handle_config(const dpp::slashcommand_t& event, ConfigSet& domainBlacklist, ConfigSet& bypassConfig) {
 	dpp::command_interaction cmd_data = std::get<dpp::command_interaction>(event.command.data);
 
 	if (cmd_data.options[0].name == "domainblacklist" and !cmd_data.options[0].options[0].options.empty()) {
@@ -90,34 +90,6 @@ void handle_config(const dpp::slashcommand_t& event, ConfigSet& domainBlacklist,
 			domainBlacklist.save();
 
 			event.reply(dpp::message("`" + domain + "` was removed from the blacklist :white_check_mark:").set_flags(dpp::m_ephemeral));
-		}
-	} else if (cmd_data.options[0].name == "forbiddenwords" and !cmd_data.options[0].options[0].options.empty()) {
-		if (cmd_data.options[0].options[0].name == "add") {
-			std::string word = std::get<std::string>(cmd_data.options[0].options[0].options[0].value);
-			transform(word.begin(), word.end(), word.begin(), ::tolower); // to lowercase
-
-			if (forbiddenWords.contains(word)) {
-				event.reply(dpp::message("`" + word + "` is on the bad-words-list already :white_check_mark:").set_flags(dpp::m_ephemeral));
-				return;
-			}
-
-			forbiddenWords.insert(word);
-			forbiddenWords.save();
-
-			event.reply(dpp::message("`" + word + "` was added to the bad-words-list :white_check_mark:").set_flags(dpp::m_ephemeral));
-		} else if (cmd_data.options[0].options[0].name == "remove") {
-			std::string word = std::get<std::string>(cmd_data.options[0].options[0].options[0].value);
-			transform(word.begin(), word.end(), word.begin(), ::tolower); // to lowercase
-
-			if (!forbiddenWords.contains(word)) {
-				event.reply(dpp::message("`" + word + "` is not in the bad-words-list :x:").set_flags(dpp::m_ephemeral));
-				return;
-			}
-
-			forbiddenWords.remove(word);
-			forbiddenWords.save();
-
-			event.reply(dpp::message("`" + word + "` was removed from the bad-words-list :white_check_mark:").set_flags(dpp::m_ephemeral));
 		}
 	} else if (cmd_data.options[0].name == "bypass") {
 		if (cmd_data.options[0].options[0].name == "add" and !cmd_data.options[0].options[0].options.empty()) {

@@ -19,7 +19,7 @@
 #include "classes/CachedGuildMember.h"
 
 #include "commands/info.hpp"
-#include "commands/manage.hpp"
+#include "commands/config.hpp"
 #include "commands/massban.hpp"
 #include "commands/masskick.hpp"
 
