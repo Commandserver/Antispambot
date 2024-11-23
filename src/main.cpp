@@ -186,7 +186,7 @@ int main() {
 
 		// when no users joined in the last 40 seconds, or 6 minutes since the first join exceeds
 		if (fast_joined_members.count() > 0 and first_join and (difftime(time(nullptr), first_join) > MINUTE * 6 or join_pause > 40)) {
-			log->info("raid detected detected, with " + std::to_string(fast_joined_members.count()) + " members");
+			bot.log(dpp::ll_info, "raid detected detected, with " + std::to_string(fast_joined_members.count()) + " members");
 
 			// send log message
 			dpp::embed embed;
@@ -387,7 +387,7 @@ int main() {
 				urlCount++;
 				const std::string URL = i->str();
 
-				log->debug("URL: " + URL);
+				bot.log(dpp::ll_debug, "URL: " + URL);
 
 				// check if the domain or top-level-domain is blacklisted
 				std::regex domain_pattern(R"(https?:\/\/.*?([^.]+\.[A-z]+)(?:\/|#|\?|:|\Z|$).*$)", std::regex_constants::icase);
@@ -396,17 +396,17 @@ int main() {
 					if (domain_matches.size() == 2) { // should be always 2
 						std::string domain = domain_matches[1];
 						transform(domain.begin(), domain.end(), domain.begin(), ::tolower); // to lowercase
-						log->debug("domain: " + domain);
+						bot.log(dpp::ll_debug, "domain: " + domain);
 
 						std::shared_lock l(domainBlacklist.get_mutex());
 						for (auto &s: domainBlacklist.get_container()) {
 							if (s.rfind('.', 0) == 0 and endsWith(domain, s)) { // if it's a top level domain
-								log->debug("blacklisted top-level-domain: " + domain);
+								bot.log(dpp::ll_debug, "blacklisted top-level-domain: " + domain);
 								mitigateSpam(bot, message_cache, config, event.msg,
 											 fmt::format("Blacklisted top-level-domain: `{}`", domain), DAY * 27, true);
 								co_return;
 							} else if (s == domain) {
-								log->debug("blacklisted domain: " + domain);
+								bot.log(dpp::ll_debug, "blacklisted domain: " + domain);
 								mitigateSpam(bot, message_cache, config, event.msg,
 											 fmt::format("Blacklisted domain: `{}`", domain), DAY * 27, true);
 								co_return;
@@ -418,7 +418,7 @@ int main() {
 				// check if url ends with a blacklisted extension
 				for (const std::string ext : config["forbidden-file-extensions"]) {
 					if (endsWith(URL, ext)) {
-						log->debug("forbidden extension: " + ext);
+						bot.log(dpp::ll_debug, "forbidden extension: " + ext);
 						mitigateSpam(bot, message_cache, config, event.msg,
 									 fmt::format("Forbidden file extension in URL: `{}`", ext), DAY * 27, true);
 						co_return;
@@ -451,7 +451,7 @@ int main() {
 
 		// to many urls in general
 		if (urlCount > 8) {
-			log->debug("too many urls");
+			bot.log(dpp::ll_debug, "too many urls");
 			mitigateSpam(bot, message_cache, config, event.msg,
 						 "Too many URLs", DAY * 27, true);
 			co_return;
@@ -459,7 +459,7 @@ int main() {
 
 		// too many mentions
 		if (event.msg.mentions.size() > 6) {
-			log->debug("too many mentions in one message");
+			bot.log(dpp::ll_debug, "too many mentions in one message");
 			mitigateSpam(bot, message_cache, config, event.msg,
 						 "Mass ping", DAY * 14, false);
 			co_return;
@@ -468,7 +468,7 @@ int main() {
 		// check if @everyone and a link
 		if (urlCount >= 1 and (event.msg.content.find("@everyone") != std::string::npos or
 							   event.msg.content.find("@here") != std::string::npos)) {
-			log->debug("url with @everyone-mention");
+			bot.log(dpp::ll_debug, "url with @everyone-mention");
 			mitigateSpam(bot, message_cache, config, event.msg,
 						 "Message contains URL and @everyone", DAY * (inviteCount >= 1 ? 27 : 14), true);
 			co_return;
@@ -478,7 +478,7 @@ int main() {
 		for (const dpp::attachment &attachment: event.msg.attachments) {
 			for (const std::string ext : config["forbidden-file-extensions"]) {
 				if (endsWith(attachment.filename, ext)) {
-					log->debug("forbidden file extension: " + ext);
+					bot.log(dpp::ll_debug, "forbidden file extension: " + ext);
 					mitigateSpam(bot, message_cache, config, event.msg,
 								 fmt::format("Forbidden file extension: `{}`", ext), DAY * 27, true);
 					co_return;
@@ -621,7 +621,7 @@ int main() {
 		}
 
 		if (mention_count > 20) {
-			log->debug("too many mentions in multiple messages");
+			bot.log(dpp::ll_debug, "too many mentions in multiple messages");
 			mitigateSpam(bot, message_cache, config, event.msg,
 						 "Too many mentions through multiple messages", DAY * 27, true);
 			co_return;
@@ -641,14 +641,14 @@ int main() {
 
 		// too many discord-invitations in one message
 		if (inviteCount > 4 or inviteCodes.size() >= 2) {
-			log->debug("too many invites");
+			bot.log(dpp::ll_debug, "too many invites");
 			mitigateSpam(bot, message_cache, config, event.msg,
 						 "Too many invitations", DAY * 27, true);
 			co_return;
 		} else {
 			// check for invitation to another server
 			for (const std::string &inviteCode: inviteCodes) {
-				log->debug("invite code: " + inviteCode);
+				bot.log(dpp::ll_debug, "invite code: " + inviteCode);
 				auto confirmation = co_await bot.co_invite_get(inviteCode);
 				if (!confirmation.is_error()) {
 					auto invite = confirmation.get<dpp::invite>();
