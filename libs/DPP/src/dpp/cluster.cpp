@@ -316,6 +316,9 @@ void cluster::shutdown() {
 	terminating.notify_all();
 	/* Free memory for active timers */
 	for (auto & t : timer_list) {
+		if (t.second->on_stop) {
+			t.second->on_stop(t.first);
+		}
 		delete t.second;
 	}
 	timer_list.clear();

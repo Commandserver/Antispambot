@@ -152,7 +152,6 @@ void deleteUserMessages(dpp::cluster &bot, dpp::cache<dpp::message> &message_cac
  * helper function in case of spam
  * @param bot bot
  * @param message_cache The message cache
- * @param config Config
  * @param msg The message which has been send
  * @param reason The reason to timeout the member
  * @param muteDuration The amount of seconds to timeout the member
@@ -160,7 +159,7 @@ void deleteUserMessages(dpp::cluster &bot, dpp::cache<dpp::message> &message_cac
  * @param fields Optional: Embed fields to also add to the log message
  * When set to false, it deletes only this message
  */
-void mitigateSpam(dpp::cluster &bot, dpp::cache<dpp::message> &message_cache, nlohmann::json &config, const dpp::message &msg, const std::string& reason, const uint32_t muteDuration, bool clearHistoryMessages, const std::vector<dpp::embed_field> &fields = {}) {
+void mitigateSpam(dpp::cluster &bot, dpp::cache<dpp::message> &message_cache, const dpp::message &msg, const std::string& reason, const uint32_t muteDuration, bool clearHistoryMessages, const std::vector<dpp::embed_field> &fields = {}) {
 
 	muteMember(bot, muteDuration, msg.guild_id, msg.author.id);
 
@@ -248,7 +247,7 @@ void mitigateSpam(dpp::cluster &bot, dpp::cache<dpp::message> &message_cache, nl
 	component.add_component(kick_component);
 
 	auto m = dpp::message().add_embed(embed).add_component(component);
-	m.channel_id = config["log-channel-id"].get<std::uint64_t>();
+	m.channel_id = config::get("log-channel-id").get<std::uint64_t>();
 	bot.message_create(m);
 	if (clearHistoryMessages) {
 		deleteUserMessages(bot, message_cache, msg.author.id);

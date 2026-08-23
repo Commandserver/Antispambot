@@ -22,13 +22,21 @@ add_executable(${PROJECT_NAME}
         src/commands/config.hpp
         src/commands/massban.hpp
         src/commands/masskick.hpp
-        )
+        src/classes/database.cpp
+        src/classes/database.h
+        src/classes/config.cpp
+        src/classes/config.h
+        src/events/onMessageCreate.hpp
+        src/classes/domain_blacklist.cpp
+        src/classes/domain_blacklist.h
+)
 
 # Linking libraries
 target_link_libraries(${PROJECT_NAME}
         dpp
         spdlog # if you need a logger. Don't forget to clone sources
         # in the `libs/` directory
+        mysqlclient
         )
 
 # Specify includes

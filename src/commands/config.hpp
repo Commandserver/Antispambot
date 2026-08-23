@@ -42,7 +42,7 @@ dpp::slashcommand definition_config() {
 			);
 }
 
-void handle_config(const dpp::slashcommand_t& event, ConfigSet& domainBlacklist, ConfigSet& bypassConfig) {
+void handle_config(const dpp::slashcommand_t& event) {
 	dpp::command_interaction cmd_data = std::get<dpp::command_interaction>(event.command.data);
 
 	if (cmd_data.options[0].name == "domainblacklist" and !cmd_data.options[0].options[0].options.empty()) {
